@@ -181,5 +181,7 @@ let from_tzw mlw : desc iresult =
   return { d_contracts; d_inv_pre; d_inv_post; d_whyml }
 
 let parse_file s =
-  let f = Lexer.parse_mlw_file @@ Lexing.from_channel @@ open_in s in
+  let lexbuf = Lexing.from_channel @@ open_in s in
+  Lexing.set_filename lexbuf s ;
+  let f = Lexer.parse_mlw_file lexbuf in
   match from_tzw f with Ok l -> l | Error e -> Loc.errorm "%s@." e
