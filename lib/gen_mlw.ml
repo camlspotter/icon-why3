@@ -199,13 +199,13 @@ module E = struct
     let p =
       pat
       @@ Ptuple
-           (List.init m (fun i -> pat @@ Pvar (ident @@ Format.sprintf "x%d" i)))
+           (List.init m (fun i -> pat @@ Pvar (ident @@ Format.sprintf "_x%d" i)))
     in
     let e =
       expr
       @@ Etuple
            (List.init m (fun i ->
-                if i = n then e2 else mk_var (ident @@ Format.sprintf "x%d" i)))
+                if i = n then e2 else mk_var (ident @@ Format.sprintf "_x%d" i)))
     in
     expr @@ Ematch (e1, [ (p, e) ], [])
 
@@ -233,10 +233,10 @@ let rec sort_wf (s : Sort.t) (p : expr) : term =
       @@ Tcase
            ( T.of_expr p,
              [
-               ( pat @@ Papp (qualid [ "Left" ], [ pat @@ Pvar (ident "p") ]),
-                 sort_wf s1 @@ E.mk_var @@ ident "p" );
-               ( pat @@ Papp (qualid [ "Right" ], [ pat @@ Pvar (ident "p") ]),
-                 sort_wf s2 @@ E.mk_var @@ ident "p" );
+               ( pat @@ Papp (qualid [ "Left" ], [ pat @@ Pvar (ident "_p") ]),
+                 sort_wf s1 @@ E.mk_var @@ ident "_p" );
+               ( pat @@ Papp (qualid [ "Right" ], [ pat @@ Pvar (ident "_p") ]),
+                 sort_wf s2 @@ E.mk_var @@ ident "_p" );
              ] )
   | _ -> term Ttrue
 
@@ -359,8 +359,8 @@ module Generator (D : Desc) = struct
     let ctx : param = mk_param "c" ctx_pty in
     let amt : param = mk_param "m" @@ pty_of_sort Sort.S_mutez in
     let gp : param = mk_param "gp" gparam_pty in
-    let p : param = mk_param "p" @@ pty_of_sort contract.cn_param_ty in
-    let s : param = mk_param "s" @@ pty_of_sort contract.cn_store_ty in
+    let p : param = mk_param "_p" @@ pty_of_sort contract.cn_param_ty in
+    let s : param = mk_param "_s" @@ pty_of_sort contract.cn_store_ty in
     [
       {
         ld_loc = Loc.dummy_position;
