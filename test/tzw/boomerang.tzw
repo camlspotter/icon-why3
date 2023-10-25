@@ -1,12 +1,32 @@
+(* icon builds a function `xxx_balance : context -> ty` for scope `Xxx`.
+
+   `x.f` is a syntax sugar of `f x`.
+
+   Therefore `c.xxx_balance` = `xxx_balance c`.
+
+   Record field `mutez_v` is defined in stdlib/michelson.mlw
+*)
+
 scope Unknown
 
+  (* No assumption *)
   predicate pre (c : ctx) = true
 
+  (* Contract Boomerang's balance never changes *)
   predicate post (c : ctx) (c' : ctx) =
     c.boomerang_balance.mutez_v = c'.boomerang_balance.mutez_v
 
 end
 
+(* Contract definition must define:
+
+   - predicate spec
+   - predicate pre
+   - predicate post
+   - type param
+   - type store
+   - value upper_ops : int
+*)	
 scope Boomerang
 
   type param = unit
@@ -15,14 +35,17 @@ scope Boomerang
 
   predicate spec (st : step) (p : unit) (s : unit) (ops : list operation) (s' : unit) =
     s = s' /\
+    (* If the transferred amount is 0, the contract does nothing *)
     (st.amount.mutez_v = 0 -> ops = Nil) /\
+    (* If the transferred amount is > 0, the contract send the same amount back to the sender *)
     (st.amount.mutez_v > 0 -> ops = Cons (Xfer (PUnit ()) st.amount st.sender) Nil)
 
   let upper_ops = 1
 
   predicate pre (c : ctx) = true
 
-  predicate post (st : step) (p : unit) (c : ctx) (c' : ctx) =
+  (* post condition: boomerang's balance does not change *)
+  predicate post (_st : step) (_p : unit) (c : ctx) (c' : ctx) =
     c.boomerang_balance.mutez_v = c'.boomerang_balance.mutez_v
 
 end

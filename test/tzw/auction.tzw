@@ -2,7 +2,7 @@ scope WhyML
 
   function sum_of : map address mutez -> mutez
 
-  axiom SumE : sum_of (const 0) = 0
+  axiom SumE : sum_of (const (mutez 0)) = mutez 0
 
   axiom SumI : forall m k v. sum_of m[k <- v] = sum_of m - m[k] + v
 

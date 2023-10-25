@@ -627,6 +627,9 @@ module Generator (D : Desc) = struct
       spec,
       body )
 
+  (*
+     type ctx = (mutez, store)
+  *)
   let ctx_ty_def =
     let stores =
       M.bindings contracts |> List.map snd
@@ -650,6 +653,9 @@ module Generator (D : Desc) = struct
         };
       ]
 
+  (*
+    type param = ...
+  *)
   let param_ty_def =
     let module S = Set.Make (struct
       type t = Sort.t
@@ -680,6 +686,10 @@ module Generator (D : Desc) = struct
         };
       ]
 
+  (*
+    type operation =
+      | Xfer param mutez address
+  *)
   let operation_ty_def =
     Dtype
       [
@@ -705,6 +715,7 @@ module Generator (D : Desc) = struct
         };
       ]
 
+  (* predicate ctx_wf (ctx: ctx) = ... *)
   let ctx_wf_def : decl =
     let ctx : param = mk_param "ctx" ctx_pty in
     let d =
@@ -734,8 +745,13 @@ module Generator (D : Desc) = struct
     |> List.flatten
 
   let spec =
+    (* predicate inv_pre (c: ctx) = ... *)
     { D.desc.d_inv_pre with ld_ident = ident @@ "inv_pre" }
+    (* predicate inv_post (c: ctx) (c': ctx) = ... *)
     :: { D.desc.d_inv_post with ld_ident = ident @@ "inv_post" }
+    (* predicate xxx_spec (st: step) (p: param) (s: store) (ops: list operation) (s': store) =
+       ...
+    *)
     :: (List.map (fun (_, c) -> declare_spec c) @@ M.bindings contracts
        |> List.flatten)
 
@@ -747,10 +763,53 @@ let file desc =
   let module G = Generator (struct
     let desc = desc
   end) in
-  Decls
-    ([ use ~import:false [ "michelson"; "Michelson" ] ]
+  Decls (
+    (* use michelson.Michelson *)
+    [ use ~import:false [ "michelson"; "Michelson" ] ]
+
+    (* type ctx = (mutez, store)
+       type param = ...
+       type operation =
+         | Xfer param mutez address
+    *)
     @ [ G.ctx_ty_def; G.param_ty_def; G.operation_ty_def ]
+
+    (* function xxx : address
+       function xxx_gparam (p : param) : param = ...
+       predicate xxx_param_wf (p : param) = ...
+       predicate is_xxx_param (gp: param) = ...
+       function xxx_balance (c: ctx) : mutez = ...
+       function xxx_store (c: ctx): store = ...
+       function xxx_balance_update (c: ctx) (m: mutez) : ctx = ..
+       function xxx_store_update (c: ctx) (s: store) : ctx = ..
+    *)
     @ List.map (fun ld -> Dlogic [ ld ]) G.accessor
-    @ [ G.ctx_wf_def ] @ desc.d_whyml
-    @ List.map (fun ld -> Dlogic [ ld ]) G.spec
-    @ [ Drec (G.unknown_func_def :: G.func_def) ])
+
+    (* predicate ctx_wf (ctx: ctx) = ...
+    *)
+    @ [ G.ctx_wf_def ]
+
+    (* Contents of scope WhyML *)
+    @ desc.d_whyml
+
+    (* predicate inv_pre (c: ctx) = ...
+       predicate inv_post (c: ctx) (c': ctx) = ...
+       predicate xxx_spec (st: step) (p: param) (s: store) (ops: list operation) (s': store) =
+         ...
+       predicate xxx_pre (c: ctx) = inv_pre c
+       predicate xxx_post (st: step) (p : param) (c: ctx) (c': ctx) = inv_post c c'
+    *)
+    @ List.map (fun (ld : logic_decl) -> Dlogic [ ld ]) G.spec
+
+    (* let rec ghost unknown g c
+         requires { c.ctx_wf }
+         requires { c.inv_pre }
+         ensures { result.ctx_wf }
+
+         ensures { inv_post c result }
+         raises { Terminate }
+         raises { Insufficient_mutez }
+         variant { g } = ...
+    *)
+    @ [ Drec (G.unknown_func_def :: G.func_def) ]
+  )

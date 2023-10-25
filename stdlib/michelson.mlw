@@ -84,6 +84,7 @@ module Michelson
   type or 'a 'b = Left 'a | Right 'b
 
   type step = (address, address, address, mutez)
+  (* source, sender, self, amount *)
 
   function mk_step (source : address) (sender : address) (self : address) (amount : mutez) : step =
     (source, sender, self, amount)
