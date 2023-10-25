@@ -376,6 +376,7 @@ module Generator (D : Desc) = struct
     let p : param = mk_param "_p" @@ pty_param contract in
     let s : param = mk_param "_s" @@ pty_store contract in
     [
+      (* function ccc : address *)
       {
         ld_loc = Loc.dummy_position;
         ld_ident = id_contract_of contract;
@@ -397,6 +398,8 @@ module Generator (D : Desc) = struct
                  (qualid [ constr_of_sort contract.cn_param_ty ])
                  [ E.var_of_param p ]);
       };
+
+      (* predicate ccc_param_wf (_p: Ccc.param) = ... *)
       {
         ld_loc = Loc.dummy_position;
         ld_ident = id_param_wf_of contract;
@@ -404,6 +407,8 @@ module Generator (D : Desc) = struct
         ld_type = None;
         ld_def = Some (sort_wf contract.cn_param_ty @@ E.var_of_param p);
       };
+
+      (* predicate ccc_store_wf (_p: Ccc.store) = ... *)
       {
         ld_loc = Loc.dummy_position;
         ld_ident = id_store_wf_of contract;
@@ -411,6 +416,8 @@ module Generator (D : Desc) = struct
         ld_type = None;
         ld_def = Some (sort_wf contract.cn_store_ty @@ E.var_of_param s);
       };
+
+      (* predicate is_ccc_param (gp: gparam) : Ccc.param = ... *)
       {
         ld_loc = Loc.dummy_position;
         ld_ident = id_is_param_of contract;
@@ -432,6 +439,8 @@ module Generator (D : Desc) = struct
                     ],
                     [] )));
       };
+
+      (* function ccc_balance (c: ctx) : mutez = ... *)
       {
         ld_loc = Loc.dummy_position;
         ld_ident = id_balance_of contract;
@@ -454,6 +463,8 @@ module Generator (D : Desc) = struct
             (T.of_expr
             @@ E.mk_proj (E.var_of_param ctx) (2 * n) (n + contract.cn_index));
       };
+
+      (* function ccc_balance_update (c: ctx) (m: mutez) : ctx = ... *)
       {
         ld_loc = Loc.dummy_position;
         ld_ident = id_update_balance_of contract;
@@ -465,6 +476,8 @@ module Generator (D : Desc) = struct
             @@ E.mk_update (E.var_of_param ctx) (2 * n) contract.cn_index
                  (E.var_of_param amt));
       };
+
+      (* function ccc_store_update (c: ctx) (_s: Ccc.store) : ctx = ... *)
       {
         ld_loc = Loc.dummy_position;
         ld_ident = id_update_store_of contract;
