@@ -11,6 +11,7 @@ let error ?(loc = Loc.dummy_position) msg =
 
 let ( >>= ) = Result.bind
 let ( let* ) = Result.bind
+let ( let+ ) x f = Result.map f x
 
 module StringMap = struct
   include Map.Make (String)
@@ -119,13 +120,17 @@ let find_let_def id decls =
 let contract name decls =
   let sort_alias id =
     find_type_def id decls >>= fun td ->
-    match td.td_def with TDalias pty -> sort_of_pty pty | _ -> error "alias"
+    match td.td_def with
+    | TDalias pty ->
+        let+ ty = sort_of_pty pty in
+        td, ty
+    | _ -> error "alias"
   in
   let* cn_spec = find_predicate_def "spec" decls in
   let* cn_pre = find_predicate_def "pre" decls in
   let* cn_post = find_predicate_def "post" decls in
-  let* cn_param_ty = sort_alias "param" in
-  let* cn_store_ty = sort_alias "store" in
+  let* cn_param_decl, cn_param_ty = sort_alias "param" in
+  let* cn_store_decl, cn_store_ty = sort_alias "store" in
   let* cn_num_kont =
     find_let_def "upper_ops" decls >>= fun e ->
     match e.expr_desc with
@@ -139,7 +144,9 @@ let contract name decls =
     {
       cn_name = String.uncapitalize_ascii name;
       cn_param_ty;
+      cn_param_decl;
       cn_store_ty;
+      cn_store_decl;
       cn_spec;
       cn_pre;
       cn_post;

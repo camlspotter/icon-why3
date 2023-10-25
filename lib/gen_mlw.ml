@@ -11,7 +11,9 @@ let fresh_id =
 type contract = {
   cn_name : string;
   cn_param_ty : Sort.t;
+  cn_param_decl : type_decl;
   cn_store_ty : Sort.t;
+  cn_store_decl : type_decl;
   cn_num_kont : int;
   cn_index : int;
   cn_spec : logic_decl;
@@ -354,13 +356,25 @@ module Generator (D : Desc) = struct
     let x = fresh_id () in
     E.mk_let x e (f (E.mk_var x))
 
+  (* ident Ccc *)
+  let ident_contract c = ident (String.capitalize_ascii c.cn_name)
+
+  (* qualid Ccc.n *)
+  let qdot_contract c n = Qdot (Qident (ident_contract c), ident n)
+
+  (* pty Ccc.param *)
+  let pty_param c = PTtyapp (qdot_contract c "param", [] )
+
+  (* pty Ccc.store *)
+  let pty_store c = PTtyapp (qdot_contract c "store", [] )
+
   let declare_accessor (contract : contract) : logic_decl list =
     let n = M.cardinal contracts in
     let ctx : param = mk_param "c" ctx_pty in
     let amt : param = mk_param "m" @@ pty_of_sort Sort.S_mutez in
     let gp : param = mk_param "gp" gparam_pty in
-    let p : param = mk_param "_p" @@ pty_of_sort contract.cn_param_ty in
-    let s : param = mk_param "_s" @@ pty_of_sort contract.cn_store_ty in
+    let p : param = mk_param "_p" @@ pty_param contract in
+    let s : param = mk_param "_s" @@ pty_store contract in
     [
       {
         ld_loc = Loc.dummy_position;
@@ -369,6 +383,8 @@ module Generator (D : Desc) = struct
         ld_type = Some (pty_of_sort Sort.S_address);
         ld_def = None;
       };
+
+      (* function ccc_gparam (_p : Ccc.param) : gparam = ... *)
       {
         ld_loc = Loc.dummy_position;
         ld_ident = id_gparam_of contract;
@@ -426,11 +442,13 @@ module Generator (D : Desc) = struct
             (T.of_expr
             @@ E.mk_proj (E.var_of_param ctx) (2 * n) contract.cn_index);
       };
+
+      (* function ccc_store (c: ctx) : Ccc.store = ... *)
       {
         ld_loc = Loc.dummy_position;
         ld_ident = id_store_of contract;
         ld_params = [ ctx ];
-        ld_type = Some (pty_of_sort contract.cn_store_ty);
+        ld_type = Some (pty_store contract);
         ld_def =
           Some
             (T.of_expr
@@ -628,13 +646,29 @@ module Generator (D : Desc) = struct
       body )
 
   (*
-     type ctx = (mutez, store)
+     scope Ccc
+       type param = ...
+       type store = ...
+     end
+  *)
+  let scopes_for_types =
+    let scope_for_types (c : contract) : decl =
+      Dscope (Loc.dummy_position,
+              true,
+              ident (String.capitalize_ascii c.cn_name),
+              [ Dtype [ c.cn_param_decl];
+                Dtype [ c.cn_store_decl] ])
+    in
+    M.fold (fun _ c acc -> scope_for_types c :: acc) contracts []
+
+  (*
+     type ctx = (mutez, mutez, ..., Ccc1.store, CCc2.store, ...)
   *)
   let ctx_ty_def =
     let stores =
       M.bindings contracts |> List.map snd
       |> List.sort (fun c1 c2 -> compare c1.cn_index c2.cn_index)
-      |> List.map (fun c -> pty_of_sort c.cn_store_ty)
+      |> List.map pty_store
     in
     let balances =
       List.init (M.cardinal contracts) @@ fun _ -> pty_of_sort Sort.S_mutez
@@ -654,23 +688,28 @@ module Generator (D : Desc) = struct
       ]
 
   (*
-    type param = ...
+    type param =
+      | PUnit unit
+      | Pxxx1 param1
+      | Pxxx2 param2
+      | ...
   *)
   let param_ty_def =
     let module S = Set.Make (struct
-      type t = Sort.t
+      type t = Sort.t * pty
 
       let compare = compare
     end) in
     let d =
+      (* Use cn_param_ty for sorting purpose *)
       M.fold
-        (fun _ c -> S.add c.cn_param_ty)
-        contracts (S.singleton Sort.S_unit)
+        (fun _ c -> S.add (c.cn_param_ty, pty_param c))
+        contracts (S.singleton (Sort.S_unit, pty_of_sort Sort.S_unit))
       |> S.elements
-      |> List.map (fun ty ->
+      |> List.map (fun (ty, pty) ->
              ( Loc.dummy_position,
                ident @@ constr_of_sort ty,
-               [ (Loc.dummy_position, None, false, pty_of_sort ty) ] ))
+               [ (Loc.dummy_position, None, false, pty) ] ))
     in
     Dtype
       [
@@ -757,6 +796,7 @@ module Generator (D : Desc) = struct
 
   let func_def =
     List.map (fun (_, c) -> known_contract c) @@ M.bindings contracts
+
 end
 
 let file desc =
@@ -766,6 +806,8 @@ let file desc =
   Decls (
     (* use michelson.Michelson *)
     [ use ~import:false [ "michelson"; "Michelson" ] ]
+
+    @ G.scopes_for_types
 
     (* type ctx = (mutez, store)
        type param = ...
