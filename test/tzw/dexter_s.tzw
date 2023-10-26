@@ -1,18 +1,18 @@
 scope Unknown
 
   predicate pre (c : ctx) =
-    let token_pool, (_xtz_pool, token_contract) = c.cpmm_store in
-    let token_ledger, approval = c.fa_store in
-    token_contract = fa /\
-    approval[cpmm] = const false /\
-    token_pool.nat_v <= token_ledger[cpmm].nat_v
+    let token_pool, (_xtz_pool, token_contract) = c.Cpmm.store in
+    let token_ledger, approval = c.Fa.store in
+    token_contract = Fa.address /\
+    approval[Cpmm.address] = const false /\
+    token_pool.nat_v <= token_ledger[Cpmm.address].nat_v
 
   predicate post (_c : ctx) (c' : ctx) =
-    let token_pool', (_xtz_pool', token_contract') = c'.cpmm_store in
-    let token_ledger', approval' = c'.fa_store in
-    token_contract' = fa /\
-    approval'[cpmm] = const false /\
-    token_pool'.nat_v <= token_ledger'[cpmm].nat_v
+    let token_pool', (_xtz_pool', token_contract') = c'.Cpmm.store in
+    let token_ledger', approval' = c'.Fa.store in
+    token_contract' = Fa.address /\
+    approval'[Cpmm.address] = const false /\
+    token_pool'.nat_v <= token_ledger'[Cpmm.address].nat_v
 
 end
 
@@ -22,7 +22,7 @@ scope Cpmm
 
   type store = (nat, (nat, address))
 
-  predicate spec (st : step) (p : (nat, (address, address))) (s : (nat, (nat, address))) (ops : list operation) (s' : (nat, (nat, address))) =
+  predicate spec (st : step) (p : param) (s : store) (ops : list operation) (s' : store) =
     let token_pool, (xtz_pool, token_contract) = s in
     let token_pool', (xtz_pool', token_contract') = s' in
     let token_sold, (token_owner, receipient) = p in
@@ -32,7 +32,7 @@ scope Cpmm
     token_pool'.nat_v = token_pool.nat_v + token_sold.nat_v /\
     xtz_pool'.nat_v = xtz_pool.nat_v - b /\
     token_contract = token_contract' /\
-    ops = Cons (Xfer (fa_gparam (Left (token_owner, (st.self, token_sold)))) (mk_mutez 0) token_contract)
+    ops = Cons (Xfer (Fa.gparam (Left (token_owner, (st.self, token_sold)))) (mk_mutez 0) token_contract)
                 (Cons (Xfer (PUnit ()) (mk_mutez b) receipient)
                   Nil)
 
@@ -40,7 +40,7 @@ scope Cpmm
 
   predicate pre (c : ctx) = inv_pre c
 
-  predicate post (_st : step) (_p : (nat, (address, address))) (c : ctx) (c' : ctx) = inv_post c c'
+  predicate post (_st : step) (_p : param) (c : ctx) (c' : ctx) = inv_post c c'
 
 end
 
@@ -50,7 +50,7 @@ scope Fa
 
   type store = (map address nat, map address (map address bool))
 
-  predicate spec (st : step) (p : (or (address, (address, nat)) address)) (s : (map address nat, map address (map address bool))) (ops : list operation) (s' : (map address nat, map address (map address bool))) =
+  predicate spec (st : step) (p : param) (s : store) (ops : list operation) (s' : store) =
     let (ledger, approval) = s in
     let (ledger', approval') = s' in
     match p with
@@ -70,8 +70,8 @@ scope Fa
 
   predicate pre (_c : ctx) = true
 
-  predicate post (st : step) (p : (or (address, (address, nat)) address)) (c : ctx) (c' : ctx) =
-    c.cpmm_store = c'.cpmm_store /\
-    fa_spec st p c.fa_store Nil c'.fa_store
+  predicate post (st : step) (p : param) (c : ctx) (c' : ctx) =
+    c.Cpmm.store = c'.Cpmm.store /\
+    spec st p c.Fa.store Nil c'.Fa.store
 
 end

@@ -42,24 +42,25 @@ let terminate_ident = ident "Terminate"
 let insufficient_mutez_ident = ident "Insufficient_mutez"
 let unknown_ident = ident "unknown"
 let id_contract_of (c : contract) : ident = ident c.cn_name
-let id_gparam_of (c : contract) : ident = ident @@ c.cn_name ^ "_gparam"
-let id_param_wf_of (c : contract) : ident = ident @@ c.cn_name ^ "_param_wf"
-let id_store_wf_of (c : contract) : ident = ident @@ c.cn_name ^ "_store_wf"
 let id_func_of (c : contract) : ident = ident @@ c.cn_name ^ "_func"
-let id_spec_of (c : contract) : ident = ident @@ c.cn_name ^ "_spec"
-let id_pre_of (c : contract) : ident = ident @@ c.cn_name ^ "_pre"
-let id_post_of (c : contract) : ident = ident @@ c.cn_name ^ "_post"
-let id_balance_of (c : contract) : ident = ident @@ c.cn_name ^ "_balance"
-let id_store_of (c : contract) : ident = ident @@ c.cn_name ^ "_store"
 
-let id_update_balance_of (c : contract) : ident =
-  ident @@ c.cn_name ^ "_balance_update"
+(* ident Ccc *)
+let id_Contract_of c = ident (String.capitalize_ascii c.cn_name)
 
-let id_update_store_of (c : contract) : ident =
-  ident @@ c.cn_name ^ "_store_update"
-
-let id_is_param_of (c : contract) : ident =
-  ident @@ "is_" ^ c.cn_name ^ "_param"
+(* qualid Ccc.n *)
+let qid_in_contract c n : qualid = qualid [String.capitalize_ascii c.cn_name; n]
+let qid_param_wf_of (c : contract) : qualid = qid_in_contract c "param_wf"
+let qid_store_wf_of (c : contract) : qualid = qid_in_contract c "store_wf"
+let qid_balance_of (c : contract) : qualid = qid_in_contract c "balance"
+let qid_store_of (c : contract) : qualid = qid_in_contract c "store"
+let qid_update_balance_of (c : contract) : qualid = qid_in_contract c "balance_update"
+let qid_update_store_of (c : contract) : qualid = qid_in_contract c "store_update"
+let qid_is_param_of (c : contract) : qualid = qid_in_contract c "is_param"
+let qid_address_of (c : contract) : qualid = qid_in_contract c "address"
+let qid_spec_of (c : contract) : qualid = qid_in_contract c "spec"
+let qid_pre_of (c : contract) : qualid = qid_in_contract c "pre"
+let qid_post_of (c : contract) : qualid = qid_in_contract c "post"
+let qid_gparam_of (c : contract) : qualid = qid_in_contract c "gparam"
 
 (** Convert [Sort.t] value into [Why3.Ptree.pty] value.  *)
 let rec pty_of_sort (s : Sort.t) : Ptree.pty =
@@ -152,6 +153,8 @@ end
 
 module E = struct
   let mk_var (x : ident) : expr = evar @@ qid x
+
+  let mk_qvar = evar
 
   let var_of_binder (x : binder) : expr =
     match x with _, Some x, _, _ -> mk_var x | _ -> assert false
@@ -279,7 +282,7 @@ module Generator (D : Desc) = struct
     eapp (qualid [ "inv_post" ]) [ ctx; ctx' ]
 
   let is_contract_of (c : contract) (e : expr) : expr =
-    E.mk_bin e "=" @@ E.mk_var @@ id_contract_of c
+    E.mk_bin e "=" @@ E.mk_qvar @@ qid_address_of c
 
   let wrap_extract_param_of (c : contract) (gp : expr) (body : expr -> expr) :
       expr =
@@ -296,36 +299,36 @@ module Generator (D : Desc) = struct
            [] )
 
   let call_param_wf_of (c : contract) (p : expr) : expr =
-    eapp (qid @@ id_param_wf_of c) [ p ]
+    eapp (qid_param_wf_of c) [ p ]
 
   let call_store_wf_of (c : contract) (s : expr) : expr =
-    eapp (qid @@ id_store_wf_of c) [ s ]
+    eapp (qid_store_wf_of c) [ s ]
 
   let call_spec_of (c : contract) (st : expr) (p : expr) (s : expr) (ops : expr)
       (s' : expr) : expr =
-    eapp (qid @@ id_spec_of c) [ st; p; s; ops; s' ]
+    eapp (qid_spec_of c) [ st; p; s; ops; s' ]
 
   let call_pre_of (c : contract) (ctx : expr) : expr =
-    eapp (qid @@ id_pre_of c) [ ctx ]
+    eapp (qid_pre_of c) [ ctx ]
 
   let call_post_of (c : contract) (st : expr) (p : expr) (ctx : expr)
       (ctx' : expr) : expr =
-    eapp (qid @@ id_post_of c) [ st; p; ctx; ctx' ]
+    eapp (qid_post_of c) [ st; p; ctx; ctx' ]
 
   let call_is_param_of (c : contract) (gp : expr) : expr =
-    eapp (qid @@ id_is_param_of c) [ gp ]
+    eapp (qid_is_param_of c) [ gp ]
 
   let balance_of (c : contract) (ctx : expr) : expr =
-    eapp (qid @@ id_balance_of c) [ ctx ]
+    eapp (qid_balance_of c) [ ctx ]
 
   let store_of (c : contract) (ctx : expr) : expr =
-    eapp (qid @@ id_store_of c) [ ctx ]
+    eapp (qid_store_of c) [ ctx ]
 
   let update_balance_of (c : contract) (ctx : expr) (e : expr) : expr =
-    eapp (qid @@ id_update_balance_of c) [ ctx; e ]
+    eapp (qid_update_balance_of c) [ ctx; e ]
 
   let update_store_of (c : contract) (ctx : expr) (e : expr) : expr =
-    eapp (qid @@ id_update_store_of c) [ ctx; e ]
+    eapp (qid_update_store_of c) [ ctx; e ]
 
   let incr_balance_of (c : contract) (ctx : expr) (amt : expr) : expr =
     update_balance_of c ctx
@@ -356,11 +359,8 @@ module Generator (D : Desc) = struct
     let x = fresh_id () in
     E.mk_let x e (f (E.mk_var x))
 
-  (* ident Ccc *)
-  let ident_contract c = ident (String.capitalize_ascii c.cn_name)
-
   (* qualid Ccc.n *)
-  let qdot_contract c n = Qdot (Qident (ident_contract c), ident n)
+  let qdot_contract c n = Qdot (Qident (id_Contract_of c), ident n)
 
   (* pty Ccc.param *)
   let pty_param c = PTtyapp (qdot_contract c "param", [] )
@@ -368,135 +368,151 @@ module Generator (D : Desc) = struct
   (* pty Ccc.store *)
   let pty_store c = PTtyapp (qdot_contract c "store", [] )
 
-  let declare_accessor (contract : contract) : logic_decl list =
+  let declare_accessors (contract : contract) : decl =
     let n = M.cardinal contracts in
     let ctx : param = mk_param "c" ctx_pty in
     let amt : param = mk_param "m" @@ pty_of_sort Sort.S_mutez in
     let gp : param = mk_param "gp" gparam_pty in
-    let p : param = mk_param "_p" @@ pty_param contract in
-    let s : param = mk_param "_s" @@ pty_store contract in
-    [
-      (* function ccc : address *)
-      {
-        ld_loc = Loc.dummy_position;
-        ld_ident = id_contract_of contract;
-        ld_params = [];
-        ld_type = Some (pty_of_sort Sort.S_address);
-        ld_def = None;
-      };
+    let pty_param = PTtyapp (qualid ["param"], []) in
+    let p : param = mk_param "_p" pty_param in
+    let pty_store = PTtyapp (qualid ["store"], []) in
+    let s : param = mk_param "_s" pty_store in
+    let call_param_wf_of (p : expr) : expr = eapp (qualid ["param_wf"]) [ p ] in
+    let logic_decls =
+      [
+        (* function address : address *)
+        {
+          ld_loc = Loc.dummy_position;
+          ld_ident = ident "address";
+          ld_params = [];
+          ld_type = Some (pty_of_sort Sort.S_address);
+          ld_def = None;
+        };
 
-      (* function ccc_gparam (_p : Ccc.param) : gparam = ... *)
-      {
-        ld_loc = Loc.dummy_position;
-        ld_ident = id_gparam_of contract;
-        ld_params = [ p ];
-        ld_type = Some gparam_pty;
-        ld_def =
-          Some
-            (T.of_expr
-            @@ eapp
+        (* function gparam (_p : param) : gparam = _p.P'... *)
+        {
+          ld_loc = Loc.dummy_position;
+          ld_ident = ident "gparam";
+          ld_params = [ p ];
+          ld_type = Some gparam_pty;
+          ld_def =
+            Some
+              (T.of_expr
+               @@ eapp
                  (qualid [ constr_of_sort contract.cn_param_ty ])
                  [ E.var_of_param p ]);
-      };
+        };
 
-      (* predicate ccc_param_wf (_p: Ccc.param) = ... *)
-      {
-        ld_loc = Loc.dummy_position;
-        ld_ident = id_param_wf_of contract;
-        ld_params = [ p ];
-        ld_type = None;
-        ld_def = Some (sort_wf contract.cn_param_ty @@ E.var_of_param p);
-      };
+        (* predicate param_wf (_p: param) = ... *)
+        {
+          ld_loc = Loc.dummy_position;
+          ld_ident = ident "param_wf";
+          ld_params = [ p ];
+          ld_type = None;
+          ld_def = Some (sort_wf contract.cn_param_ty @@ E.var_of_param p);
+        };
 
-      (* predicate ccc_store_wf (_p: Ccc.store) = ... *)
-      {
-        ld_loc = Loc.dummy_position;
-        ld_ident = id_store_wf_of contract;
-        ld_params = [ s ];
-        ld_type = None;
-        ld_def = Some (sort_wf contract.cn_store_ty @@ E.var_of_param s);
-      };
+        (* predicate store_wf (_s: store) = ... *)
+        {
+          ld_loc = Loc.dummy_position;
+          ld_ident = ident "store_wf";
+          ld_params = [ s ];
+          ld_type = None;
+          ld_def = Some (sort_wf contract.cn_store_ty @@ E.var_of_param s);
+        };
 
-      (* predicate is_ccc_param (gp: gparam) : Ccc.param = ... *)
-      {
-        ld_loc = Loc.dummy_position;
-        ld_ident = id_is_param_of contract;
-        ld_params = [ gp ];
-        ld_type = None;
-        ld_def =
-          (let p = fresh_id ~x:"p" () in
-           Some
-             (T.of_expr @@ expr
-             @@ Ematch
+        (* predicate is_param (gp: gparam) = ... *)
+        {
+          ld_loc = Loc.dummy_position;
+          ld_ident = ident "is_param";
+          ld_params = [ gp ];
+          ld_type = None;
+          ld_def =
+            (let p = fresh_id ~x:"p" () in
+             Some
+               (T.of_expr @@ expr
+                @@ Ematch
                   ( E.var_of_param gp,
                     [
                       ( pat
                         @@ Papp
-                             ( qualid [ constr_of_sort contract.cn_param_ty ],
-                               [ pat @@ Pvar p ] ),
-                        call_param_wf_of contract @@ E.mk_var p );
+                          ( qualid [ constr_of_sort contract.cn_param_ty ],
+                            [ pat @@ Pvar p ] ),
+                        call_param_wf_of @@ E.mk_var p );
                       (pat Pwild, expr Efalse);
                     ],
                     [] )));
-      };
+        };
 
-      (* function ccc_balance (c: ctx) : mutez = ... *)
-      {
-        ld_loc = Loc.dummy_position;
-        ld_ident = id_balance_of contract;
-        ld_params = [ ctx ];
-        ld_type = Some (pty_of_sort Sort.S_mutez);
-        ld_def =
-          Some
-            (T.of_expr
-            @@ E.mk_proj (E.var_of_param ctx) (2 * n) contract.cn_index);
-      };
+        (* function balance (c: ctx) : mutez = ... *)
+        {
+          ld_loc = Loc.dummy_position;
+          ld_ident = ident "balance";
+          ld_params = [ ctx ];
+          ld_type = Some (pty_of_sort Sort.S_mutez);
+          ld_def =
+            Some
+              (T.of_expr
+               @@ E.mk_proj (E.var_of_param ctx) (2 * n) contract.cn_index);
+        };
 
-      (* function ccc_store (c: ctx) : Ccc.store = ... *)
-      {
-        ld_loc = Loc.dummy_position;
-        ld_ident = id_store_of contract;
-        ld_params = [ ctx ];
-        ld_type = Some (pty_store contract);
-        ld_def =
-          Some
-            (T.of_expr
-            @@ E.mk_proj (E.var_of_param ctx) (2 * n) (n + contract.cn_index));
-      };
+        (* function store (c: ctx) : store = ... *)
+        {
+          ld_loc = Loc.dummy_position;
+          ld_ident = ident "store";
+          ld_params = [ ctx ];
+          ld_type = Some pty_store;
+          ld_def =
+            Some
+              (T.of_expr
+               @@ E.mk_proj (E.var_of_param ctx) (2 * n) (n + contract.cn_index));
+        };
 
-      (* function ccc_balance_update (c: ctx) (m: mutez) : ctx = ... *)
-      {
-        ld_loc = Loc.dummy_position;
-        ld_ident = id_update_balance_of contract;
-        ld_params = [ ctx; amt ];
-        ld_type = Some ctx_pty;
-        ld_def =
-          Some
-            (T.of_expr
-            @@ E.mk_update (E.var_of_param ctx) (2 * n) contract.cn_index
+        (* function balance_update (c: ctx) (m: mutez) : ctx = ... *)
+        {
+          ld_loc = Loc.dummy_position;
+          ld_ident = ident "balance_update";
+          ld_params = [ ctx; amt ];
+          ld_type = Some ctx_pty;
+          ld_def =
+            Some
+              (T.of_expr
+               @@ E.mk_update (E.var_of_param ctx) (2 * n) contract.cn_index
                  (E.var_of_param amt));
-      };
+        };
 
-      (* function ccc_store_update (c: ctx) (_s: Ccc.store) : ctx = ... *)
-      {
-        ld_loc = Loc.dummy_position;
-        ld_ident = id_update_store_of contract;
-        ld_params = [ ctx; s ];
-        ld_type = Some ctx_pty;
-        ld_def =
-          Some
-            (T.of_expr
-            @@ E.mk_update (E.var_of_param ctx) (2 * n) (n + contract.cn_index)
+        (* function store_update (c: ctx) (_s: store) : ctx = ... *)
+        {
+          ld_loc = Loc.dummy_position;
+          ld_ident = ident "store_update";
+          ld_params = [ ctx; s ];
+          ld_type = Some ctx_pty;
+          ld_def =
+            Some
+              (T.of_expr
+               @@ E.mk_update (E.var_of_param ctx) (2 * n) (n + contract.cn_index)
                  (E.var_of_param s));
-      };
-    ]
+        };
+      ]
+    in
+    (* These declarations must be under import Ccc *)
+    Dscope (Loc.dummy_position,
+            false,
+            id_Contract_of contract,
+            Dimport (Qident (id_Contract_of contract))
+            :: List.map (fun ld -> Dlogic [ld]) logic_decls)
 
-  let declare_spec (contract : contract) : logic_decl list =
-    [
-      { contract.cn_spec with ld_ident = id_spec_of contract };
-      { contract.cn_pre with ld_ident = id_pre_of contract };
-      { contract.cn_post with ld_ident = id_post_of contract };
-    ]
+  let declare_spec (contract : contract) : decl =
+    Dscope (Loc.dummy_position,
+            false,
+            id_Contract_of contract,
+            Dimport (Qident (id_Contract_of contract))
+            :: List.map (fun ld -> Dlogic [ld])
+              [
+                contract.cn_spec;
+                contract.cn_pre;
+                contract.cn_post;
+              ])
 
   let known_contract (contract : contract) : fundef =
     let st = mk_binder @@ ident "st" in
@@ -667,8 +683,8 @@ module Generator (D : Desc) = struct
   let scopes_for_types =
     let scope_for_types (c : contract) : decl =
       Dscope (Loc.dummy_position,
-              true,
-              ident (String.capitalize_ascii c.cn_name),
+              false,
+              id_Contract_of c,
               [ Dtype [ c.cn_param_decl];
                 Dtype [ c.cn_store_decl] ])
     in
@@ -792,20 +808,18 @@ module Generator (D : Desc) = struct
         };
       ]
 
-  let accessor =
-    List.map (fun (_, c) -> declare_accessor c) @@ M.bindings contracts
-    |> List.flatten
+  let accessors =
+    M.fold (fun _ c acc -> declare_accessors c :: acc) contracts []
 
-  let spec =
+  let spec : decl list =
     (* predicate inv_pre (c: ctx) = ... *)
-    { D.desc.d_inv_pre with ld_ident = ident @@ "inv_pre" }
+    Dlogic [{ D.desc.d_inv_pre with ld_ident = ident @@ "inv_pre" }]
     (* predicate inv_post (c: ctx) (c': ctx) = ... *)
-    :: { D.desc.d_inv_post with ld_ident = ident @@ "inv_post" }
+    :: Dlogic [{ D.desc.d_inv_post with ld_ident = ident @@ "inv_post" }]
     (* predicate xxx_spec (st: step) (p: param) (s: store) (ops: list operation) (s': store) =
        ...
     *)
-    :: (List.map (fun (_, c) -> declare_spec c) @@ M.bindings contracts
-       |> List.flatten)
+    :: M.fold (fun _ c acc -> declare_spec c :: acc) contracts []
 
   let func_def =
     List.map (fun (_, c) -> known_contract c) @@ M.bindings contracts
@@ -838,7 +852,7 @@ let file desc =
        function xxx_balance_update (c: ctx) (m: mutez) : ctx = ..
        function xxx_store_update (c: ctx) (s: store) : ctx = ..
     *)
-    @ List.map (fun ld -> Dlogic [ ld ]) G.accessor
+    @ G.accessors
 
     (* predicate ctx_wf (ctx: ctx) = ...
     *)
@@ -854,7 +868,7 @@ let file desc =
        predicate xxx_pre (c: ctx) = inv_pre c
        predicate xxx_post (st: step) (p : param) (c: ctx) (c': ctx) = inv_post c c'
     *)
-    @ List.map (fun (ld : logic_decl) -> Dlogic [ ld ]) G.spec
+    @ G.spec
 
     (* let rec ghost unknown g c
          requires { c.ctx_wf }
