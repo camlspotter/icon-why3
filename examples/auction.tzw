@@ -41,7 +41,7 @@ scope Preambles
   function amount (st : step) : mutez =
     match st with  _, _, _, x -> x end
 
-  predicate st_wf (st : step) =
+  predicate step_wf (st : step) =
     st.amount >= 0
 
   function sum_of : map address mutez -> mutez
