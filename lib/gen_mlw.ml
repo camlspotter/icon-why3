@@ -789,6 +789,9 @@ let gen_storage_wf td =
 
 let convert_contract (epp : Sort.t list StringMap.t StringMap.t)
     (c : Tzw.contract) =
+  StringMap.iter (fun c m ->
+      StringMap.iter (fun ep ss ->
+          Format.(eprintf "%s.%s @[%a@]@." c ep (pp_print_list ~pp_sep:(fun ppf () -> fprintf ppf ",@ ") Sort.pp_sort)) ss) m) epp;
   let* eps =
     List.fold_left_e
       (fun tl ep ->
