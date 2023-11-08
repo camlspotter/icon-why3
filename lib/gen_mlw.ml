@@ -55,8 +55,8 @@ let qid_of (c : contract) (id : ident) =
 
 let _id_contract_of (c : contract) : ident = ident c.cn_name
 let id_func_of (c : contract) : ident = ident @@ c.cn_name ^ "_func"
-let id_pre_of (c : contract) : ident = ident @@ c.cn_name ^ "_pre"
-let id_post_of (c : contract) : ident = ident @@ c.cn_name ^ "_post"
+let qualid_pre_of (c : contract) : qualid = qualid [String.capitalize_ascii c.cn_name; "pre"]
+let qualid_post_of (c : contract) : qualid = qualid [String.capitalize_ascii c.cn_name; "post"]
 let id_balance_of (c : contract) : ident = ident @@ c.cn_name ^ "_balance"
 let id_store_of (c : contract) : ident = ident @@ c.cn_name ^ "_storage"
 
@@ -246,10 +246,10 @@ module Generator (D : Desc) = struct
   let qid_storage_wf_of (c : contract) : qualid = qid_of c storage_wf_ident
   let call_ctx_wf (ctx : expr) : expr = eapp (qid ctx_wf_ident) [ ctx ]
   let call_step_wf (st : expr) : expr = eapp (qid step_wf_ident) [ st ]
-  let call_inv_pre (ctx : expr) : expr = eapp (qualid [ "inv_pre" ]) [ ctx ]
+  let call_inv_pre (ctx : expr) : expr = eapp (qualid [ "Unknown"; "pre" ]) [ ctx ]
 
   let call_inv_post (ctx : expr) (ctx' : expr) : expr =
-    eapp (qualid [ "inv_post" ]) [ ctx; ctx' ]
+    eapp (qualid [ "Unknown"; "post" ]) [ ctx; ctx' ]
 
   let is_contract_of (c : contract) (e : expr) : expr =
     E.mk_bin e "=" @@ evar @@ qid_of c addr_ident
@@ -265,11 +265,11 @@ module Generator (D : Desc) = struct
     eapp (qid_of c spec_ident) [ st; gp; s; ops; s' ]
 
   let call_pre_of (c : contract) (ctx : expr) : expr =
-    eapp (qid @@ id_pre_of c) [ ctx ]
+    eapp (qualid_pre_of c) [ ctx ]
 
   let call_post_of (c : contract) (st : expr) (p : expr) (ctx : expr)
       (ctx' : expr) : expr =
-    eapp (qid @@ id_post_of c) [ st; p; ctx; ctx' ]
+    eapp (qualid_post_of c) [ st; p; ctx; ctx' ]
 
   let _call_is_param_of (c : contract) (gp : expr) : expr =
     eapp (qid @@ id_is_param_of c) [ gp ]
@@ -794,9 +794,6 @@ let gen_storage_wf td =
 
 let convert_contract (epp : Sort.t list StringMap.t StringMap.t)
     (c : Tzw.contract) =
-  StringMap.iter (fun c m ->
-      StringMap.iter (fun ep ss ->
-          Format.(eprintf "%s.%s @[%a@]@." c ep (pp_print_list ~pp_sep:(fun ppf () -> fprintf ppf ",@ ") Sort.pp_sort)) ss) m) epp;
   let* eps =
     List.fold_left_e
       (fun tl ep ->
@@ -873,37 +870,8 @@ let gen_gparam (epp : Sort.t list StringMap.t StringMap.t) =
 let convert_mlw (tzw : Tzw.t) =
   let epp = tzw.tzw_epp in
   let* ds = List.map_e (convert_contract epp) tzw.tzw_knowns in
-  let* invariants =
-    let* lds =
-      List.map_e
-        (fun (c : Tzw.contract) ->
-          let* pre_def = Option.map_e (convert_gparam epp) c.c_pre.ld_def in
-          let* post_def = Option.map_e (convert_gparam epp) c.c_post.ld_def in
-          return
-            [
-              Dlogic
-                [
-                  {
-                    c.c_pre with
-                    ld_ident =
-                      Ptree_helpers.ident @@ String.uncapitalize_ascii
-                      @@ c.c_name.id_str ^ "_pre";
-                    ld_def = pre_def;
-                  };
-                ];
-              Dlogic
-                [
-                  {
-                    c.c_post with
-                    ld_ident =
-                      Ptree_helpers.ident @@ String.uncapitalize_ascii
-                      @@ c.c_name.id_str ^ "_post";
-                    ld_def = post_def;
-                  };
-                ];
-            ])
-        tzw.tzw_knowns
-    in
+
+  let* unknown_invariants =
     let* pre_def =
       Option.map_e (convert_gparam epp) tzw.tzw_unknown_pre.ld_def
     in
@@ -911,24 +879,59 @@ let convert_mlw (tzw : Tzw.t) =
       Option.map_e (convert_gparam epp) tzw.tzw_unknown_post.ld_def
     in
     return
-    @@ Dlogic
-         [
-           {
-             tzw.tzw_unknown_pre with
-             ld_ident = Ptree_helpers.ident "inv_pre";
-             ld_def = pre_def;
-           };
-         ]
-       :: Dlogic
-            [
-              {
-                tzw.tzw_unknown_post with
-                ld_ident = Ptree_helpers.ident "inv_post";
-                ld_def = post_def;
-              };
-            ]
-       :: List.flatten lds
+    @@ Dscope (Loc.dummy_position, false,
+               ident "Unknown",
+               [ Dlogic
+                   [
+                     {
+                       tzw.tzw_unknown_pre with
+                       ld_ident = Ptree_helpers.ident "pre";
+                       ld_def = pre_def;
+                     };
+                   ];
+                 Dlogic
+                   [
+                     {
+                       tzw.tzw_unknown_post with
+                       ld_ident = Ptree_helpers.ident "post";
+                       ld_def = post_def;
+                     };
+                   ]
+               ])
   in
+
+  let* contract_invariants =
+    let* lds =
+      List.map_e
+        (fun (c : Tzw.contract) ->
+          let* pre_def = Option.map_e (convert_gparam epp) c.c_pre.ld_def in
+          let* post_def = Option.map_e (convert_gparam epp) c.c_post.ld_def in
+          return
+          @@ Dscope (Loc.dummy_position, false,
+                    c.c_name,
+                    [ Dimport (qid c.c_name);
+                      Dlogic
+                        [
+                          {
+                            c.c_pre with
+                            ld_ident = Ptree_helpers.ident "pre";
+                            ld_def = pre_def;
+                          };
+                        ];
+                      Dlogic
+                        [
+                          {
+                            c.c_post with
+                            ld_ident = Ptree_helpers.ident "post";
+                            ld_def = post_def;
+                          };
+                        ];
+                    ]))
+        tzw.tzw_knowns
+    in
+    return lds
+  in
+
   let d_contracts =
     List.map
       (fun (c : Tzw.contract) ->
@@ -966,8 +969,11 @@ let convert_mlw (tzw : Tzw.t) =
         (* contents of [scope Postambles] *)
         tzw.tzw_postambles;
 
-        (* inv_pre, inv_post, contract_pre, contract_post *)
-        invariants;
+        (* scope Unknown  predicate pre = ... predicate post = ... *)
+        [unknown_invariants];
+
+        (* scope Contract  predicate pre = ...  predicate post = ... *)
+        contract_invariants;
 
         (* let rec ghost unknown g c .. *)
         [ Drec (G.unknown_func_def :: G.func_def) ]
