@@ -24,22 +24,19 @@ scope Preambles
 
   type or 'a 'b = Left 'a | Right 'b
 
-  type step = (address, address, address, mutez)
+  type step =
+    { source : address;
+      sender : address;
+      self : address;
+      amount : mutez
+    }
 
   function mk_step (source : address) (sender : address) (self : address) (amount : mutez) : step =
-    (source, sender, self, amount)
-
-  function source (st : step) : address =
-    match st with x, _, _, _ -> x end
-
-  function sender (st : step) : address =
-    match st with _, x, _, _ -> x end
-
-  function self (st : step) : address =
-    match st with _, _, x, _ -> x end
-
-  function amount (st : step) : mutez =
-    match st with  _, _, _, x -> x end
+    { source= source;
+      sender= sender;
+      self= self;
+      amount= amount
+    }
 
   predicate step_wf (st : step) =
     st.amount >= 0
@@ -91,11 +88,11 @@ scope Auction
 
   predicate pre (c : ctx) = inv_pre c
 
-  predicate post (st : step) (gp : gparam) (c : ctx) (c' : ctx) = inv_post c c'
+  predicate post (_st : step) (_gp : gparam) (c : ctx) (c' : ctx) = inv_post c c'
 
   scope Spec
 
-  predicate bid (st : step) (p : unit) (s : storage) (ops : list operation) (s' : storage) =
+  predicate bid (st : step) (_p : unit) (s : storage) (ops : list operation) (s' : storage) =
     not s.ended /\
     s.highest_bid < st.amount /\
     st.sender <> s.beneficiary /\
@@ -105,12 +102,12 @@ scope Auction
            pending_returns = s.pending_returns[s.highest_bidder <- s.pending_returns[s.highest_bidder] + s.highest_bid] } /\
     ops = Nil
 
-  predicate withdraw (st : step) (p : unit) (s : storage) (ops : list operation) (s' : storage) =
+  predicate withdraw (st : step) (_p : unit) (s : storage) (ops : list operation) (s' : storage) =
     0 < st.amount /\
     s' = { s with pending_returns = s.pending_returns[st.sender <- 0] } /\
     ops = Cons (Xfer (Gp'Unknown'default ()) s.pending_returns[st.sender] st.sender) Nil
 
-  predicate end_auction (st : step) (p : unit) (s : storage) (ops : list operation) (s' : storage) =
+  predicate end_auction (st : step) (_p : unit) (s : storage) (ops : list operation) (s' : storage) =
     not s.ended /\
     0 < st.amount /\
     s' = { s with ended = true } /\

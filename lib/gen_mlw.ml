@@ -154,6 +154,8 @@ module E = struct
 
   let _mk_tuple (el : expr list) : expr = expr @@ Etuple el
 
+  let mk_record (el : (qualid * expr) list) : expr = expr @@ Erecord el
+
   let mk_proj (e : expr) (m : int) (n : int) : expr =
     assert (m > 0 && m > n);
     let p =
@@ -185,7 +187,10 @@ end
 
 module Step_constant = struct
   let mk source sender self amount : expr =
-    E.mk_tuple [ source; sender; self; amount ]
+    E.mk_record [ qualid ["source"], source;
+                  qualid ["sender"], sender;
+                  qualid ["self"], self;
+                  qualid ["amount"], amount ]
 
   let source st : expr = eapp (qualid [ "source" ]) [ st ]
   let sender st : expr = eapp (qualid [ "sender" ]) [ st ]
