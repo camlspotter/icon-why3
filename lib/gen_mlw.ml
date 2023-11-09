@@ -152,7 +152,7 @@ module E = struct
   let mk_bin (e1 : expr) (o : string) (e2 : expr) : expr =
     expr @@ Einnfix (e1, ident @@ Ident.op_infix o, e2)
 
-  let _mk_tuple (el : expr list) : expr = expr @@ Etuple el
+  let mk_tuple (el : expr list) : expr = expr @@ Etuple el
 
   let mk_proj (e : expr) (m : int) (n : int) : expr =
     assert (m > 0 && m > n);
