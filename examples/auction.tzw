@@ -95,7 +95,7 @@ scope Auction
 
   scope Spec
 
-  predicate bid (st : step) (p : unit) (s : storage) (ops : list operation) (s' : storage) =
+  predicate bid (st : step) (_p : unit) (s : storage) (ops : list operation) (s' : storage) =
     not s.ended /\
     s.highest_bid < st.amount /\
     st.sender <> s.beneficiary /\
@@ -105,12 +105,12 @@ scope Auction
            pending_returns = s.pending_returns[s.highest_bidder <- s.pending_returns[s.highest_bidder] + s.highest_bid] } /\
     ops = Nil
 
-  predicate withdraw (st : step) (p : unit) (s : storage) (ops : list operation) (s' : storage) =
+  predicate withdraw (st : step) (_p : unit) (s : storage) (ops : list operation) (s' : storage) =
     0 < st.amount /\
     s' = { s with pending_returns = s.pending_returns[st.sender <- 0] } /\
     ops = Cons (Xfer (Gp'Unknown'default ()) s.pending_returns[st.sender] st.sender) Nil
 
-  predicate end_auction (st : step) (p : unit) (s : storage) (ops : list operation) (s' : storage) =
+  predicate end_auction (st : step) (_p : unit) (s : storage) (ops : list operation) (s' : storage) =
     not s.ended /\
     0 < st.amount /\
     s' = { s with ended = true } /\
