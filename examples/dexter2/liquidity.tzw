@@ -92,7 +92,7 @@ scope Postambles
     let total_supply' = c'.lqt_storage.Lqt.total_supply in
     if st.sender = c.lqt_storage.Lqt.admin (* Cpmm.addr *) then
       match gp with
-      | Gp'0mintOrBurn'0int4address quantity _ ->
+      | Gp_Lqt_mintOrBurn quantity _ ->
           total_record' - total_supply' + quantity = total_record - total_supply
       | _ -> total_record' - total_supply' = total_record - total_supply
       end
@@ -145,8 +145,8 @@ scope Cpmm
     s'.lqt_address = s.lqt_address /\
     let lqt_minted = s'.lqt_total - s.lqt_total in
     match op with
-    | Cons (Xfer (Gp'Unknown'transfer _) _ _)
-      (Cons (Xfer (Gp'Lqt'mintOrBurn q _) _ lqc) Nil) ->
+    | Cons (Xfer (Gp_Unknown_transfer _) _ _)
+      (Cons (Xfer (Gp_Lqt_mintOrBurn q _) _ lqc) Nil) ->
       q = lqt_minted /\
       lqc = s.lqt_address
     | _ -> False
@@ -158,9 +158,9 @@ scope Cpmm
     s'.lqt_address = s.lqt_address /\
     s'.lqt_total = s.lqt_total - lqt_burned /\
     match op with
-    | Cons (Xfer (Gp'Lqt'mintOrBurn q _) _ lqc)
-      (Cons (Xfer (Gp'Unknown'transfer _) _ _)
-       (Cons (Xfer (Gp'Unknown'default _) _ _) Nil)) ->
+    | Cons (Xfer (Gp_Lqt_mintOrBurn q _) _ lqc)
+      (Cons (Xfer (Gp_Unknown_transfer _) _ _)
+       (Cons (Xfer (Gp_Unknown_default _) _ _) Nil)) ->
       q = 0 - lqt_burned /\
       lqc = s.lqt_address
     | _ -> False
@@ -170,7 +170,7 @@ scope Cpmm
     s'.lqt_address = s.lqt_address /\
     s'.lqt_total = s.lqt_total /\
     match op with
-    | Cons (Xfer (Gp'Unknown'transfer _) _ _) Nil ->
+    | Cons (Xfer (Gp_Unknown_transfer _) _ _) Nil ->
       True
     | _ -> False
     end
@@ -179,8 +179,8 @@ scope Cpmm
     s'.lqt_address = s.lqt_address /\
     s'.lqt_total = s.lqt_total /\
     match op with
-    | Cons (Xfer (Gp'Unknown'transfer _) _ _)
-      (Cons (Xfer (Gp'Unknown'default _) _ _) Nil) ->
+    | Cons (Xfer (Gp_Unknown_transfer _) _ _)
+      (Cons (Xfer (Gp_Unknown_default _) _ _) Nil) ->
       True
     | _ -> False
     end
@@ -189,8 +189,8 @@ scope Cpmm
     s'.lqt_address = s.lqt_address /\
     s'.lqt_total = s.lqt_total /\
     match op with
-    | Cons (Xfer (Gp'Unknown'transfer _) _ _)
-      (Cons (Xfer (Gp'Cpmm'xtz_to_token _ _ _) _ _) Nil) ->
+    | Cons (Xfer (Gp_Unknown_transfer _) _ _)
+      (Cons (Xfer (Gp_Cpmm_xtz_to_token _ _ _) _ _) Nil) ->
       True
     | _ -> False
     end
@@ -219,7 +219,7 @@ scope Cpmm
     s'.lqt_address = s.lqt_address /\
     s'.lqt_total = s.lqt_total /\
     match op with
-    | Cons (Xfer (Gp'Unknown'balance_of _) _ _) Nil ->
+    | Cons (Xfer (Gp_Unknown_balance_of _) _ _) Nil ->
       True
     | _ -> False
     end
