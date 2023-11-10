@@ -30,7 +30,7 @@ type entrypoint = {
 
 type contract = {
   c_name : Ptree.ident;
-  c_store_ty : Ptree.type_decl;
+  c_storage_ty : Ptree.type_decl;
   c_entrypoints : entrypoint list;
   c_num_kont : int;
   c_pre : Ptree.logic_decl;
@@ -46,7 +46,7 @@ type t = {
   tzw_unknown_post : Ptree.logic_decl;
 }
 
-(** entrypoint params are "(st : step) (p1 : t1) ... (pn : tn) (s : store) (ops : list operation) (s' : store)", where "t1 ... tn" must be a michelson type. *)
+(** entrypoint params are "(st : step) (p1 : t1) ... (pn : tn) (s : storage) (ops : list operation) (s' : storage)", where "t1 ... tn" must be a michelson type. *)
 let parse_entrypoint_params (params : Ptree.param list) =
   let param_loc (l, _, _, _) = l in
   let param_pty (_, _, _, pty) = pty in
@@ -191,48 +191,48 @@ let parse_upper_ops (e : Ptree.expr) =
   | _ -> error_with ~loc "upper_ops_len shall be an integer constant"
 
 let parse_contract loc id ds =
-  let* ostore, okont, oeps, opre, opost =
+  let* ostorage, okont, oeps, opre, opost =
     List.fold_left_e
-      (fun (ostore, okont, oeps, opre, opost) -> function
+      (fun (ostorage, okont, oeps, opre, opost) -> function
         | Ptree.Dtype [ td ] when td.td_ident.id_str = Id.storage_ty.id_str ->
             let* () =
-              error_unless (ostore = None)
+              error_unless (ostorage = None)
                 ~err:(error_of_fmt ~loc:td.td_loc "multiple declaration of storage type")
             in
-            let* store = check_storage_type_decl td in
-            return (Some store, okont, oeps, opre, opost)
+            let* storage = check_storage_type_decl td in
+            return (Some storage, okont, oeps, opre, opost)
         | Dlet (id, _, _, e) when id.id_str = Id.upper_ops.id_str ->
             let* () =
               error_unless (okont = None)
                 ~err:(error_of_fmt ~loc:id.id_loc "multiple declaration of upper_ops")
             in
             let* kont = parse_upper_ops e in
-            return (ostore, Some kont, oeps, opre, opost)
+            return (ostorage, Some kont, oeps, opre, opost)
         | Dscope (loc, _, id, dls) when id.id_str = Id.spec_scope.id_str ->
             let* () =
               error_unless (oeps = None)
                 ~err:(error_of_fmt ~loc "multiple declaration of Spec")
             in
             let* eps = parse_entrypoint_scope dls in
-            return (ostore, okont, Some eps, opre, opost)
+            return (ostorage, okont, Some eps, opre, opost)
         | Dlogic [ ld ] when ld.ld_ident.id_str = Id.pre.id_str ->
             let* () =
               error_unless (opre = None)
                 ~err:(error_of_fmt ~loc:ld.ld_loc "multiple declaration of pre")
             in
-            return (ostore, okont, oeps, Some ld, opost)
+            return (ostorage, okont, oeps, Some ld, opost)
         | Dlogic [ ld ] when ld.ld_ident.id_str = Id.post.id_str ->
             let* () =
               error_unless (opost = None)
                 ~err:(error_of_fmt ~loc:ld.ld_loc "multiple declaration of pre")
             in
-            return (ostore, okont, oeps, opre, Some ld)
+            return (ostorage, okont, oeps, opre, Some ld)
         | _ -> error_with ~loc "unexpected decl")
       (None, None, None, None, None)
       ds
   in
-  let* c_store_ty =
-    Option.to_iresult ostore ~none:(error_of_fmt ~loc "storage is missing")
+  let* c_storage_ty =
+    Option.to_iresult ostorage ~none:(error_of_fmt ~loc "storage is missing")
   in
   let* c_num_kont =
     Option.to_iresult okont ~none:(error_of_fmt ~loc "upper_ops is missing")
@@ -246,7 +246,7 @@ let parse_contract loc id ds =
   let* c_post =
     Option.to_iresult opost ~none:(error_of_fmt ~loc "post is missing")
   in
-  return { c_name = id; c_store_ty; c_entrypoints; c_num_kont; c_pre; c_post }
+  return { c_name = id; c_storage_ty; c_entrypoints; c_num_kont; c_pre; c_post }
 
 let parse_unknown (loc : Loc.position) (ds : Ptree.decl list) =
   let parse_entrypoint_type (ds : Ptree.decl list) =

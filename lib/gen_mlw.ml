@@ -13,7 +13,7 @@ let fresh_id =
 type contract = {
   cn_name : string;
   (* cn_param_ty : Sort.t; *)
-  (* cn_store_ty : Sort.t; *)
+  (* cn_storage_ty : Sort.t; *)
   cn_num_kont : int;
       (* cn_index : int; *)
       (* cn_spec : logic_decl; *)
@@ -58,7 +58,7 @@ let id_func_of (c : contract) : ident = ident @@ c.cn_name ^ "_func"
 let qualid_pre_of (c : contract) : qualid = qualid [String.capitalize_ascii c.cn_name; "pre"]
 let qualid_post_of (c : contract) : qualid = qualid [String.capitalize_ascii c.cn_name; "post"]
 let id_balance_of (c : contract) : ident = ident @@ c.cn_name ^ "_balance"
-let id_store_of (c : contract) : ident = ident @@ c.cn_name ^ "_storage"
+let id_storage_of (c : contract) : ident = ident @@ c.cn_name ^ "_storage"
 
 let id_is_param_of (c : contract) : ident =
   ident @@ "is_" ^ c.cn_name ^ "_param"
@@ -278,13 +278,13 @@ module Generator (D : Desc) = struct
     eapp (qid @@ id_balance_of c) [ ctx ]
 
   let storage_of (c : contract) (ctx : expr) : expr =
-    eapp (qid @@ id_store_of c) [ ctx ]
+    eapp (qid @@ id_storage_of c) [ ctx ]
 
   let update_balance_of (c : contract) (ctx : expr) (e : expr) : expr =
     expr @@ Eupdate (ctx, [ (qid @@ id_balance_of c, e) ])
 
   let update_storage_of (c : contract) (ctx : expr) (e : expr) : expr =
-    expr @@ Eupdate (ctx, [ (qid @@ id_store_of c, e) ])
+    expr @@ Eupdate (ctx, [ (qid @@ id_storage_of c, e) ])
 
   let incr_balance_of (c : contract) (ctx : expr) (amt : expr) : expr =
     update_balance_of c ctx @@ E.mk_bin (balance_of c ctx) "+" amt
@@ -496,7 +496,7 @@ module Generator (D : Desc) = struct
         (fun _ c flds ->
           {
             f_loc = Loc.dummy_position;
-            f_ident = id_store_of c;
+            f_ident = id_storage_of c;
             f_pty = storage_pty_of c;
             f_mutable = false;
             f_ghost = false;
@@ -769,7 +769,7 @@ let convert_contract (epp : Sort.t list StringMap.t StringMap.t)
     |> Option.to_iresult ~none:(error_of_fmt "")
   in
   let* param_wf = gen_param_wf c.c_name.id_str ep in
-  let* storage_wf = gen_storage_wf c.c_store_ty in
+  let* storage_wf = gen_storage_wf c.c_storage_ty in
   return
   @@ Dscope
        ( Loc.dummy_position,
@@ -786,7 +786,7 @@ let convert_contract (epp : Sort.t list StringMap.t StringMap.t)
                  ld_def = None;
                };
              ];
-           Dtype [ c.c_store_ty ];
+           Dtype [ c.c_storage_ty ];
            Dlogic [ param_wf ];
            Dlogic [ storage_wf ];
            Dscope (Loc.dummy_position, false, Ptree_helpers.ident "Spec", eps);

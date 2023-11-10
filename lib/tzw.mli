@@ -20,7 +20,7 @@ type entrypoint = {
 
 type contract = {
   c_name : ident;
-  c_store_ty : type_decl;
+  c_storage_ty : type_decl;
   c_entrypoints : entrypoint list;
   c_num_kont : int;
   c_pre : logic_decl;
