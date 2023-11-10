@@ -75,7 +75,7 @@ scope Boomerang
 
   predicate default (st : step) (_p : unit) (_s : storage) (ops : list operation) (_s' : storage) =
     (st.amount = 0 -> ops = Nil) /\
-    (st.amount > 0 -> ops = Cons (Xfer (Gp'Unknown'default ()) st.amount st.sender) Nil)
+    (st.amount > 0 -> ops = Cons (Xfer (Gp_Unknown_default ()) st.amount st.sender) Nil)
 
   end
 

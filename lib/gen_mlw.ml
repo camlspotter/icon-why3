@@ -588,49 +588,12 @@ module Generator (D : Desc) = struct
 end
 
 (** Generate the global parameter constructor name for entrypoint [ep] of type [s]. *)
-let gen_gparam_cstr (ep : string) (s : Sort.t list) : string =
-  let re = Regexp.(compile @@ alt [ char ' '; char '('; char ')'; char ',' ]) in
-  List.map
-    (fun s ->
-      Sort.string_of_sort s
-      |> Regexp.replace re ~f:(fun g ->
-             match Regexp.Group.get g 0 with
-             | " " -> "0"
-             | "(" -> "1"
-             | ")" -> "2"
-             | "," -> "3"
-             | _ -> assert false))
-    s
-  |> String.concat "4"
-  |> Format.sprintf "Gp'0%s'0%s" ep
+let gen_gparam_cstr (cn : string) (ep : string) (_s : Sort.t list) : string =
+  Printf.sprintf "Gp_%s_%s" cn ep
 
-let convert_gparam (epp : Sort.t list StringMap.t StringMap.t) (t : Ptree.term)
-    : Ptree.term iresult =
-  let convert id =
-    match String.split_on_char '\'' id.Ptree.id_str with
-    | "Gp" :: cn_n :: ep_ns ->
-        let ep_n = String.concat "'" ep_ns in
-        let cn =
-          try StringMap.find cn_n epp
-          with Not_found ->
-            raise
-            @@ Loc.Located
-                 (id.id_loc, Failure (Format.sprintf "%s is not declared" cn_n))
-        in
-        let s =
-          try StringMap.find ep_n cn
-          with Not_found ->
-            raise
-            @@ Loc.Located
-                 ( id.id_loc,
-                   Failure (Format.sprintf "%s doesn't have %s" cn_n ep_n) )
-        in
-        { id with id_str = gen_gparam_cstr ep_n s }
-    | _ -> id
-  in
-  let open Ptree_mapper in
-  try return @@ apply_term t { default_mapper with ident = convert }
-  with Loc.Located (loc, Failure s) -> error_with ~loc "%s" s
+let convert_gparam (_epp : Sort.t list StringMap.t StringMap.t) (t : Ptree.term)
+  : Ptree.term iresult =
+  return t
 
 let convert_entrypoint (epp : Sort.t list StringMap.t StringMap.t)
     (ep : Tzw.entrypoint) =
@@ -646,7 +609,7 @@ let convert_entrypoint (epp : Sort.t list StringMap.t StringMap.t)
       ld_def = Some body;
     }
 
-let gen_spec (epp : Sort.t list StringMap.t) =
+let gen_spec cn (epp : Sort.t list StringMap.t) =
   let st : Ptree.param =
     ( Loc.dummy_position,
       Some (Ptree_helpers.ident "st"),
@@ -703,7 +666,7 @@ let gen_spec (epp : Sort.t list StringMap.t) =
               s
         in
         Ptree_helpers.
-          ( pat @@ Papp (qualid [ gen_gparam_cstr en s ], params),
+          ( pat @@ Papp (qualid [ gen_gparam_cstr cn en s ], params),
             tapp (qualid [ "Spec"; en ]) args )
         :: cls)
       epp
@@ -719,7 +682,7 @@ let gen_spec (epp : Sort.t list StringMap.t) =
   let ld_def = Some body in
   { ld_loc; ld_ident; ld_params; ld_type; ld_def }
 
-let gen_param_wf ep =
+let gen_param_wf cn ep =
   let gp : Ptree.param =
     ( Loc.dummy_position,
       Some (Ptree_helpers.ident "gp"),
@@ -739,7 +702,7 @@ let gen_param_wf ep =
         in
         let pred = List.fold_left T.mk_and Ptree_helpers.(term Ttrue) preds in
         Ptree_helpers.
-          (pat @@ Papp (qualid [ gen_gparam_cstr en s ], params), pred)
+          (pat @@ Papp (qualid [ gen_gparam_cstr cn en s ], params), pred)
         :: cls)
       ep
       [ Ptree_helpers.(pat Pwild, term Tfalse) ]
@@ -800,7 +763,7 @@ let convert_contract (epp : Sort.t list StringMap.t StringMap.t)
     StringMap.find_opt c.c_name.id_str epp
     |> Option.to_iresult ~none:(error_of_fmt "")
   in
-  let* param_wf = gen_param_wf ep in
+  let* param_wf = gen_param_wf c.c_name.id_str ep in
   let* storage_wf = gen_storage_wf c.c_store_ty in
   return
   @@ Dscope
@@ -822,7 +785,7 @@ let convert_contract (epp : Sort.t list StringMap.t StringMap.t)
            Dlogic [ param_wf ];
            Dlogic [ storage_wf ];
            Dscope (Loc.dummy_position, false, Ptree_helpers.ident "Spec", eps);
-           Dlogic [ gen_spec (StringMap.find c.c_name.id_str epp) ];
+           Dlogic [ gen_spec c.c_name.id_str (StringMap.find c.c_name.id_str epp) ];
          ] )
 
 let gen_gparam (epp : Sort.t list StringMap.t StringMap.t) =
@@ -835,18 +798,18 @@ let gen_gparam (epp : Sort.t list StringMap.t StringMap.t) =
     TDalgebraic
       (S.elements
       @@ StringMap.fold
-           (fun _ ->
+           (fun cn ->
              StringMap.fold (fun en s cstrs ->
                  S.add
                    ( Loc.dummy_position,
-                     Ptree_helpers.ident @@ gen_gparam_cstr en s,
+                     Ptree_helpers.ident @@ gen_gparam_cstr cn en s,
                      List.map
                        (fun s ->
                          (Loc.dummy_position, None, false, Sort.pty_of_sort s))
                        s )
                    cstrs))
            epp
-      @@ S.singleton (Loc.dummy_position, ident "GpUnknown", []))
+           S.empty)
   in
   Dtype
     [
