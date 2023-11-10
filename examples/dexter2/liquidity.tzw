@@ -41,6 +41,10 @@ scope Preambles
   predicate step_wf (st : step) =
     st.amount >= 0
 
+  type contract_ctxt 'storage =
+    { storage : 'storage;
+      balance : mutez }
+
   function sum_of : map address (option nat) -> nat
 
   axiom SumE : sum_of (const None) = 0
@@ -66,31 +70,31 @@ scope Postambles
   axiom distinct_address3: Lqt.addr <> null_addr
 
   predicate pre_inv (c : ctx) =
-    c.lqt_storage.Lqt.admin = Cpmm.addr /\
-    c.lqt_storage.Lqt.total_supply = (sum_of c.lqt_storage.Lqt.tokens)
+    c.lqt.storage.Lqt.admin = Cpmm.addr /\
+    c.lqt.storage.Lqt.total_supply = (sum_of c.lqt.storage.Lqt.tokens)
 
   predicate post_inv (c : ctx) (c' : ctx) =
-    c'.lqt_storage.Lqt.admin = Cpmm.addr /\
-    c'.lqt_storage.Lqt.total_supply = (sum_of c'.lqt_storage.Lqt.tokens) /\
-    (c.cpmm_storage.Cpmm.lqt_address <> null_addr ->
-     c'.cpmm_storage.Cpmm.lqt_address = c.cpmm_storage.Cpmm.lqt_address) /\
-    (c'.cpmm_storage.Cpmm.lqt_address = null_addr \/
-      c'.cpmm_storage.Cpmm.lqt_address = Lqt.addr ->
-     c'.cpmm_storage.Cpmm.lqt_total - c'.lqt_storage.Lqt.total_supply =
-           c.cpmm_storage.Cpmm.lqt_total - c.lqt_storage.Lqt.total_supply)
+    c'.lqt.storage.Lqt.admin = Cpmm.addr /\
+    c'.lqt.storage.Lqt.total_supply = (sum_of c'.lqt.storage.Lqt.tokens) /\
+    (c.cpmm.storage.Cpmm.lqt_address <> null_addr ->
+     c'.cpmm.storage.Cpmm.lqt_address = c.cpmm.storage.Cpmm.lqt_address) /\
+    (c'.cpmm.storage.Cpmm.lqt_address = null_addr \/
+      c'.cpmm.storage.Cpmm.lqt_address = Lqt.addr ->
+     c'.cpmm.storage.Cpmm.lqt_total - c'.lqt.storage.Lqt.total_supply =
+           c.cpmm.storage.Cpmm.lqt_total - c.lqt.storage.Lqt.total_supply)
 
   predicate post_inv2 (st : step) (gp : gparam) (c : ctx) (c' : ctx) =
-    c'.lqt_storage.Lqt.admin = Cpmm.addr /\
-    c'.lqt_storage.Lqt.total_supply = (sum_of c'.lqt_storage.Lqt.tokens) /\
-    (c.cpmm_storage.Cpmm.lqt_address <> null_addr ->
-     c'.cpmm_storage.Cpmm.lqt_address = c.cpmm_storage.Cpmm.lqt_address) /\
-    (c'.cpmm_storage.Cpmm.lqt_address = null_addr \/
-      c'.cpmm_storage.Cpmm.lqt_address = Lqt.addr ->
-    let total_record = c.cpmm_storage.Cpmm.lqt_total in
-    let total_supply = c.lqt_storage.Lqt.total_supply in
-    let total_record' = c'.cpmm_storage.Cpmm.lqt_total in
-    let total_supply' = c'.lqt_storage.Lqt.total_supply in
-    if st.sender = c.lqt_storage.Lqt.admin (* Cpmm.addr *) then
+    c'.lqt.storage.Lqt.admin = Cpmm.addr /\
+    c'.lqt.storage.Lqt.total_supply = (sum_of c'.lqt.storage.Lqt.tokens) /\
+    (c.cpmm.storage.Cpmm.lqt_address <> null_addr ->
+     c'.cpmm.storage.Cpmm.lqt_address = c.cpmm.storage.Cpmm.lqt_address) /\
+    (c'.cpmm.storage.Cpmm.lqt_address = null_addr \/
+      c'.cpmm.storage.Cpmm.lqt_address = Lqt.addr ->
+    let total_record = c.cpmm.storage.Cpmm.lqt_total in
+    let total_supply = c.lqt.storage.Lqt.total_supply in
+    let total_record' = c'.cpmm.storage.Cpmm.lqt_total in
+    let total_supply' = c'.lqt.storage.Lqt.total_supply in
+    if st.sender = c.lqt.storage.Lqt.admin (* Cpmm.addr *) then
       match gp with
       | Gp_Lqt_mintOrBurn quantity _ ->
           total_record' - total_supply' + quantity = total_record - total_supply

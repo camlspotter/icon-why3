@@ -31,6 +31,8 @@ type desc = {
 (* id definitions
    Magical words should be defined here. *)
 
+let contract_ctxt_ty_ident = ident "contract_ctxt"
+
 let ctx_ty_ident = ident "ctx"
 let ctx_wf_ident = ident "ctx_wf"
 let step_ty_ident = ident "step"
@@ -49,6 +51,8 @@ let unknown_ident = ident "unknown"
 let _unknown_param_ctr_ident = ident "Punknown"
 let xfer_cstr_ident = ident "Xfer"
 let sdel_cstr_ident = ident "Sdel"
+let balance_ident = ident "balance"
+let storage_ident = ident "storage"
 
 let qid_of (c : contract) (id : ident) =
   qualid [ String.capitalize_ascii c.cn_name; id.id_str ]
@@ -57,8 +61,6 @@ let _id_contract_of (c : contract) : ident = ident c.cn_name
 let id_func_of (c : contract) : ident = ident @@ c.cn_name ^ "_func"
 let qualid_pre_of (c : contract) : qualid = qualid [String.capitalize_ascii c.cn_name; "pre"]
 let qualid_post_of (c : contract) : qualid = qualid [String.capitalize_ascii c.cn_name; "post"]
-let id_balance_of (c : contract) : ident = ident @@ c.cn_name ^ "_balance"
-let id_storage_of (c : contract) : ident = ident @@ c.cn_name ^ "_storage"
 
 let id_is_param_of (c : contract) : ident =
   ident @@ "is_" ^ c.cn_name ^ "_param"
@@ -242,6 +244,7 @@ module Generator (D : Desc) = struct
   let step_pty = PTtyapp (qid step_ty_ident, [])
   let gparam_pty = PTtyapp (qid gparam_ty_ident, [])
   let storage_pty_of c = PTtyapp (qid_of c storage_ty_ident, [])
+  let ctxt_of c = PTtyapp (qid contract_ctxt_ty_ident, [PTtyapp (qid_of c storage_ty_ident, [])])
   let qid_param_wf_of (c : contract) : qualid = qid_of c param_wf_ident
   let qid_storage_wf_of (c : contract) : qualid = qid_of c storage_wf_ident
   let call_ctx_wf (ctx : expr) : expr = eapp (qid ctx_wf_ident) [ ctx ]
@@ -274,17 +277,25 @@ module Generator (D : Desc) = struct
   let _call_is_param_of (c : contract) (gp : expr) : expr =
     eapp (qid @@ id_is_param_of c) [ gp ]
 
+  (* c.contract.balance *)
   let balance_of (c : contract) (ctx : expr) : expr =
-    eapp (qid @@ id_balance_of c) [ ctx ]
+    eapp (qid balance_ident) [ eapp (qualid [c.cn_name]) [ ctx ] ]
 
+  (* c.contract.storage *)
   let storage_of (c : contract) (ctx : expr) : expr =
-    eapp (qid @@ id_storage_of c) [ ctx ]
+    eapp (qid storage_ident) [ eapp (qualid [c.cn_name]) [ ctx ] ]
 
   let update_balance_of (c : contract) (ctx : expr) (e : expr) : expr =
-    expr @@ Eupdate (ctx, [ (qid @@ id_balance_of c, e) ])
+    (* { c with contract = { c.contract with balance = e } } *)
+    expr @@ Eupdate (ctx, [ qualid [c.cn_name],
+                            expr @@ Eupdate ( eapp (qualid [c.cn_name]) [ ctx ],
+                                              [qid balance_ident, e]) ])
 
+  (* { c with contract = { c.contract with storage = e } } *)
   let update_storage_of (c : contract) (ctx : expr) (e : expr) : expr =
-    expr @@ Eupdate (ctx, [ (qid @@ id_storage_of c, e) ])
+    expr @@ Eupdate (ctx, [ qualid [c.cn_name],
+                            expr @@ Eupdate ( eapp (qualid [c.cn_name]) [ ctx ],
+                                              [qid storage_ident, e]) ])
 
   let incr_balance_of (c : contract) (ctx : expr) (amt : expr) : expr =
     update_balance_of c ctx @@ E.mk_bin (balance_of c ctx) "+" amt
@@ -496,18 +507,11 @@ module Generator (D : Desc) = struct
         (fun _ c flds ->
           {
             f_loc = Loc.dummy_position;
-            f_ident = id_storage_of c;
-            f_pty = storage_pty_of c;
+            f_ident = ident c.cn_name;
+            f_pty = ctxt_of c;
             f_mutable = false;
             f_ghost = false;
           }
-          :: {
-               f_loc = Loc.dummy_position;
-               f_ident = id_balance_of c;
-               f_pty = Sort.pty_of_sort Sort.S_mutez;
-               f_mutable = false;
-               f_ghost = false;
-             }
           :: flds)
         contracts []
     in

@@ -41,6 +41,10 @@ scope Preambles
   predicate step_wf (st : step) =
     st.amount >= 0
 
+  type contract_ctxt 'storage =
+    { storage : 'storage;
+      balance : mutez }
+
   function sum_of : map address mutez -> mutez
 
   axiom SumE : sum_of (const 0) = 0
@@ -48,24 +52,23 @@ scope Preambles
   axiom SumI : forall m k v. sum_of m[k <- v] = sum_of m + v - m[k]
 
   axiom SumN : forall m k. m[k] <= sum_of m
-
 end
 
 scope Unknown
 
   predicate pre (c : ctx) =
-    c.auction_storage.Auction.beneficiary <> c.auction_storage.Auction.highest_bidder /\
-    c.auction_storage.Auction.pending_returns[c.auction_storage.Auction.beneficiary] = 0 /\
-    (not c.auction_storage.Auction.ended -> c.auction_storage.Auction.highest_bid + sum_of c.auction_storage.Auction.pending_returns <= c.auction_balance) /\
-    (c.auction_storage.Auction.ended -> sum_of c.auction_storage.Auction.pending_returns < c.auction_balance)
+    c.auction.storage.Auction.beneficiary <> c.auction.storage.Auction.highest_bidder /\
+    c.auction.storage.Auction.pending_returns[c.auction.storage.Auction.beneficiary] = 0 /\
+    (not c.auction.storage.Auction.ended -> c.auction.storage.Auction.highest_bid + sum_of c.auction.storage.Auction.pending_returns <= c.auction.balance) /\
+    (c.auction.storage.Auction.ended -> sum_of c.auction.storage.Auction.pending_returns < c.auction.balance)
 
   predicate post (c : ctx) (c' : ctx) =
-    c.auction_storage.Auction.beneficiary = c'.auction_storage.Auction.beneficiary /\
-    c'.auction_storage.Auction.beneficiary <> c'.auction_storage.Auction.highest_bidder /\
-    c'.auction_storage.Auction.pending_returns[c'.auction_storage.Auction.beneficiary] = 0 /\
-    (c.auction_storage.Auction.ended -> c'.auction_storage.Auction.ended) /\
-    (not c'.auction_storage.Auction.ended -> c'.auction_storage.Auction.highest_bid + sum_of c'.auction_storage.Auction.pending_returns <= c'.auction_balance) /\
-    (c'.auction_storage.Auction.ended -> sum_of c'.auction_storage.Auction.pending_returns < c'.auction_balance)
+    c.auction.storage.Auction.beneficiary = c'.auction.storage.Auction.beneficiary /\
+    c'.auction.storage.Auction.beneficiary <> c'.auction.storage.Auction.highest_bidder /\
+    c'.auction.storage.Auction.pending_returns[c'.auction.storage.Auction.beneficiary] = 0 /\
+    (c.auction.storage.Auction.ended -> c'.auction.storage.Auction.ended) /\
+    (not c'.auction.storage.Auction.ended -> c'.auction.storage.Auction.highest_bid + sum_of c'.auction.storage.Auction.pending_returns <= c'.auction.balance) /\
+    (c'.auction.storage.Auction.ended -> sum_of c'.auction.storage.Auction.pending_returns < c'.auction.balance)
 
   scope Entrypoint
 
