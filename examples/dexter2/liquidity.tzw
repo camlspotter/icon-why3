@@ -10,17 +10,39 @@ scope Preambles
   exception Insufficient_mutez
   exception Terminate
 
+  function is_unit_wf () : bool = true
+  function is_int_wf (_ : int) : bool = true
+  function is_option_wf (fa : 'a -> bool) (ao : option 'a) : bool =
+    match ao with
+    | None -> true
+    | Some a -> fa a
+    end
+  function is_map_wf (_fa : 'a -> bool) (_fb : 'b -> bool) (_map : map 'a 'b) : bool = true
+  function is_list_wf (_fa : 'a -> bool) (_xs : list 'a) : bool = true
+  function is_bool_wf (_ : bool) : bool = true
+
+  function is__tuple2_wf (fa : 'a -> bool) (fb : 'b -> bool) (ab : ('a, 'b)) : bool = match ab with (a, b) -> fa a /\ fb b end
+  
+  function is__tuple3_wf (fa : 'a -> bool) (fb : 'b -> bool) (fc : 'c -> bool) (abc : ('a, 'b, 'c)) : bool = match abc with (a, b, c) -> fa a /\ fb b /\ fc c end
+  
   type nat = int
+  function is_nat_wf (x : nat) : bool = x >= 0
 
   type mutez = int
+  function is_mutez_wf (x : mutez) : bool = x >= 0
 
   type address = int
+  function is_address_wf (_ : address) : bool = true
 
   type key_hash = int
+  function is_key_hash_wf key_hash : bool = true
 
   type timestamp = int
+  function is_timestamp_wf timestamp : bool = true
 
   type contract 'a = int
+
+  function is_contract_wf (_ : 'a -> bool) (_ : contract 'a) : bool = true
 
   type or 'a 'b = Left 'a | Right 'b
 
@@ -68,6 +90,7 @@ scope Postambles
   axiom distinct_address2: Cpmm.addr <> Lqt.addr
   axiom distinct_address3: Lqt.addr <> null_addr
 
+  (* ctx must be inserted *)
   predicate pre_inv (c : ctx) =
     c.lqt_storage.Lqt.admin = Cpmm.addr /\
     c.lqt_storage.Lqt.total_supply = (sum_of c.lqt_storage.Lqt.tokens)
@@ -123,11 +146,23 @@ end
 
 scope Cpmm
 
-  type storage = {
+  type boolean [@gen_wf] = bool
+
+  type foo0 [@gen_wf] = list int
+
+  type foo1 [@gen_wf] 'a = list 'a
+
+  type foo2 [@gen_wf] 'a 'b = ('a, 'b)
+
+  type foo3 [@gen_wf] = Foo | Bar int
+
+  type foo4 [@gen_wf] 'a = Woo 'a | Vee 'a (list 'a)
+
+  type storage [@gen_wf] = {
     token_pool : nat;
     xtz_pool : mutez;
     lqt_total : nat;
-    self_is_updating_token_pool : bool;
+    self_is_updating_token_pool : boolean;
     freeze_baker : bool;
     manager : address;
     token_address : address;
@@ -135,6 +170,7 @@ scope Cpmm
     lqt_address : address;
     }
 
+  (* ctx must be inserted *)
   predicate pre (c : ctx) = pre_inv c
 
   predicate post (_st : step) (_gp : gparam) (c : ctx) (c' : ctx) = post_inv c c'
@@ -227,7 +263,7 @@ scope Cpmm
     | _ -> False
     end
 
-  predicate update_token_pool_internal (_st : step) (_p : list ((address, nat), nat)) (s : storage) (op : list operation) (s' : storage) =
+  predicate update_token_pool_internal (_st : step) (_p : list (address, nat, nat)) (s : storage) (op : list operation) (s' : storage) =
     s'.lqt_address = s.lqt_address /\
     s'.lqt_total = s.lqt_total /\
     op = Nil
@@ -243,7 +279,7 @@ end
 
 scope Lqt
 
-  type storage = {
+  type storage [@gen_wf] = {
     tokens : map address (option nat);
     allowances : map (address, address) (option nat);
     admin : address;

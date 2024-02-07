@@ -35,6 +35,7 @@ type contract = {
   c_num_kont : int;
   c_pre : Ptree.logic_decl;
   c_post : Ptree.logic_decl;
+  c_original_decls : Ptree.decl list;
 }
 
 type t = {
@@ -93,7 +94,7 @@ let parse_entrypoint_params (params : Ptree.param list) =
   in
   let* () =
     error_unless
-      (op_ty = Sort.(S_list S_operation))
+      (Sort.equal op_ty Mtypes.s_list_operation)
       ~err:
         (error_of_fmt ~loc:(param_loc op)
            "invalid format: list operation type is expected")
@@ -194,6 +195,7 @@ let parse_contract loc id ds =
   let* ostore, okont, oeps, opre, opost =
     List.fold_left_e
       (fun (ostore, okont, oeps, opre, opost) -> function
+        (* TODO: storage can be defined with other types *)
         | Ptree.Dtype [ td ] when td.td_ident.id_str = Id.storage_ty.id_str ->
             let* () =
               error_unless (ostore = None)
@@ -201,6 +203,10 @@ let parse_contract loc id ds =
             in
             let* store = check_storage_type_decl td in
             return (Some store, okont, oeps, opre, opost)
+
+        | Dtype _tds ->
+            return (ostore, okont, oeps, opre, opost)
+
         | Dlet (id, _, _, e) when id.id_str = Id.upper_ops.id_str ->
             let* () =
               error_unless (okont = None)
@@ -227,7 +233,13 @@ let parse_contract loc id ds =
                 ~err:(error_of_fmt ~loc:ld.ld_loc "multiple declaration of pre")
             in
             return (ostore, okont, oeps, opre, Some ld)
-        | _ -> error_with ~loc "unexpected decl")
+
+        | Dlogic _ ->
+            return (ostore, okont, oeps, opre, opost)
+
+        | decl -> error_with ~loc "@[<2>unexpected declaration:@ %a@]"
+                    (Mlw_printer.pp_decl ~attr:true)
+                    decl)
       (None, None, None, None, None)
       ds
   in
@@ -246,7 +258,9 @@ let parse_contract loc id ds =
   let* c_post =
     Option.to_iresult opost ~none:(error_of_fmt ~loc "post is missing")
   in
-  return { c_name = id; c_store_ty; c_entrypoints; c_num_kont; c_pre; c_post }
+  return { c_name = id; c_store_ty; c_entrypoints; c_num_kont; c_pre; c_post;
+           c_original_decls= ds
+         }
 
 let parse_unknown (loc : Loc.position) (ds : Ptree.decl list) =
   let parse_entrypoint_type (ds : Ptree.decl list) =

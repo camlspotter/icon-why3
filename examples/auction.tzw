@@ -10,19 +10,35 @@ scope Preambles
   exception Insufficient_mutez
   exception Terminate
 
+  function is_unit_wf () : bool = true
+
+  function is_bool_wf (_ : bool) : bool = true
+
+  function is_map_wf (_is_key_wf : 'a -> bool) (_is_value_wf : 'b -> bool) (_m : map 'a 'b) : bool = true
+
   type nat = int
+  function is_nat_wf (x : nat) : bool = x >= 0
 
   type mutez = int
+  function is_mutez_wf (x : mutez) : bool = x >= 0
 
   type address = int
+  function is_address_wf (_ : address) : bool = true
 
   type key_hash = int
+  function is_key_hash_wf (_ : key_hash) : bool = true
 
   type timestamp = int
+  function is_timestamp_wf (_ : timestamp) : bool = true
 
   type contract 'a = int
 
   type or 'a 'b = Left 'a | Right 'b
+  function is_or_wf (af : 'a -> bool) (bf : 'b -> bool) (x : or 'a 'b) : bool =
+    match x with
+    | Left a -> af a
+    | Right b -> bf b
+    end
 
   type step = (address, address, address, mutez)
 
@@ -79,7 +95,7 @@ end
 
 scope Auction
 
-  type storage = {
+  type storage [@gen_wf] = {
     beneficiary : address;
     highest_bidder : address;
     highest_bid : mutez;
