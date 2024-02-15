@@ -85,32 +85,13 @@ let parse_entrypoint_params (params : Ptree.param list) =
         (error_of_fmt ~loc:(param_loc s')
            "invalid format: storage type is expected")
   in
-  let* op_ty =
-    trace
-      ~err:
-        (error_of_fmt ~loc:(param_loc op)
-           "invalid format: list operation type is expected")
-    @@ Sort.sort_of_pty @@ param_pty op
-  in
+  let op_ty = Sort.sort_of_pty @@ param_pty op in
   let* () =
     error_unless
       (Sort.equal op_ty Mtypes.s_list_operation)
       ~err:
         (error_of_fmt ~loc:(param_loc op)
            "invalid format: list operation type is expected")
-  in
-  let* () =
-    List.fold_left_e
-      (fun () p ->
-        let* _ =
-          trace
-            ~err:
-              (error_of_fmt ~loc:(param_loc p)
-                 "invalid format: Michelson type is expected")
-          @@ Sort.sort_of_pty @@ param_pty p
-        in
-        return ())
-      () params
   in
   return
     {
@@ -158,29 +139,12 @@ let check_storage_type_decl (td : Ptree.type_decl) : Ptree.type_decl iresult =
   let* () = error_unless (td.td_inv = []) ~err:(error_of_fmt ~loc "pure record") in
   let* () = error_unless (td.td_wit = None) ~err:(error_of_fmt ~loc "pure record") in
   match td.td_def with
-  | TDalias pty ->
-      let* _ =
-        trace ~err:(error_of_fmt ~loc "Michelson type is expected")
-        @@ Sort.sort_of_pty pty
-      in
+  | TDalias _pty ->
       return td
-  | TDrecord flds ->
-      let* () =
-        List.iter_e
-          (fun f ->
-            let* _ =
-              trace
-                ~err:(error_of_fmt ~loc:f.f_loc "Michelson type is expected")
-              @@ Sort.sort_of_pty f.f_pty
-            in
-            return ())
-          flds
-      in
+  | TDrecord _flds ->
       return td
   | _ ->
-      error_with ~loc
-        "storage type must be a Michelson type or a record type of which \
-         fields' type is a Michelson type"
+      error_with ~loc "Unsupported storage type"
 
 let parse_upper_ops (e : Ptree.expr) =
   let loc = e.expr_loc in
@@ -267,11 +231,9 @@ let parse_unknown (loc : Loc.position) (ds : Ptree.decl list) =
     List.fold_left_e
       (fun m -> function
         | Dlogic [ ld ] ->
-            let* s =
-              List.map_e
-                (fun (loc, _, _, pty) ->
-                  trace ~err:(error_of_fmt ~loc "Michelson type is expected")
-                  @@ Sort.sort_of_pty pty)
+            let s =
+              List.map
+                (fun (_loc, _, _, pty) -> Sort.sort_of_pty pty)
                 ld.ld_params
             in
             return @@ StringMap.add ld.ld_ident.id_str s m
@@ -348,15 +310,15 @@ let parse_mlw (mlw : Ptree.mlw_file) =
     StringMap.fold_e
       (fun name (loc, id, ds) (cs, eps) ->
         let* c = parse_contract loc id ds in
-        let* epp =
-          List.fold_left_e
+        let epp =
+          List.fold_left
             (fun m ep ->
-              let* s =
-                List.map_e
+              let s =
+                List.map
                   (fun (_, _, _, pty) -> Sort.sort_of_pty pty)
                   ep.ep_params.epp_param
               in
-              return @@ StringMap.add ep.ep_name.id_str s m)
+              StringMap.add ep.ep_name.id_str s m)
             StringMap.empty c.c_entrypoints
         in
         return @@ (c :: cs, StringMap.add name epp eps))

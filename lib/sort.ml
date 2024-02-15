@@ -27,7 +27,7 @@ let string_of_sort (ty : t) : string =
       pp_sort ppf ty)
     ty
 
-let sort_of_pty (pty : pty) : t iresult =
+let sort_of_pty (pty : pty) : t =
   (* We must drop the location info and etc. for equality *)
   let open Ptree in
   let norm_id id = { id with id_ats= []; id_loc= Loc.dummy_position } in
@@ -45,6 +45,6 @@ let sort_of_pty (pty : pty) : t iresult =
     | PTparen pty -> PTparen (norm pty)
     | PTpure pty -> PTpure (norm pty)
   in
-  Ok (Sort (norm pty))
+  Sort (norm pty)
 
 let pty_of_sort (Sort pty : t) : Ptree.pty = pty

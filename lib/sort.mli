@@ -14,7 +14,7 @@ val pp_sort : Format.formatter -> t -> unit
 
 val string_of_sort : t -> string
 
-val sort_of_pty : pty -> t Error_monad.iresult
+val sort_of_pty : pty -> t
 (** Parse a [pty] value as a Michelson type and convert into a [Sort.t] value. *)
 
 val pty_of_sort : t -> pty

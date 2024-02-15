@@ -100,6 +100,11 @@ module T = struct
   let mk_and (t1 : term) (t2 : term) : term =
     term @@ Tbinnop (t1, Dterm.DTand, t2)
 
+  let mk_applys f ts =
+    List.fold_left (fun a b -> term @@ Tapply (a, b)) f ts
+
+  let mk_idapp id ts = term @@ Tidapp (qid id, ts)
+
   (** convert expression to term *)
   let rec of_expr (e : expr) : term =
     let term_desc =
@@ -209,47 +214,45 @@ end
 
 let name_is_type_wf = Printf.sprintf "is_%s_wf"
 
-(* Build an expression to check the well-foundness of [pty],
-   [is_<type>_wf is_'a_wf ..].
+(* Build a term for the well-foundness of [pty], [is_<type>_wf is_'a_wf ..].
 
    We need to pre-define [is__tupleX_wf], since [term] cannot have lambdas
    and therefore we cannot write [fun (x, y) -> is_x_wf x /\ is_y_wf y]
  *)
+(* XXX error monad *)
 let rec is_type_wf (pty : pty) : term =
-  let tapplys f es =
-    List.fold_left (fun a b -> term @@ Tapply (a, b)) f es
-  in
   let fun_id id = ident @@ name_is_type_wf id.id_str in
   let fun_qualid = function
     | Qident id -> Qident (fun_id id)
     | Qdot (qualid, id) -> Qdot (qualid, fun_id id)
   in
   match pty with
-  | PTtyvar id -> tvar @@ qualid [name_is_type_wf ("'" ^ id.id_str)]
+  | PTtyvar id ->
+      tvar @@ qualid [name_is_type_wf ("'" ^ id.id_str)]
+  | PTtyapp (qualid, []) ->
+      tvar @@ fun_qualid qualid
   | PTtyapp (qualid, ptys) ->
       let ptys = List.map is_type_wf ptys in
-      (match ptys with
-       | [] -> tvar @@ fun_qualid qualid
-       | _ -> tapplys (tvar @@ fun_qualid qualid) ptys)
-  | PTtuple [] -> tvar @@ qualid ["is_unit_wf"]
-  | PTtuple [ pty ] -> is_type_wf pty
+      T.mk_applys (tvar @@ fun_qualid qualid) ptys
+  | PTtuple [] ->
+      tvar @@ qualid ["is_unit_wf"]
+  | PTtuple [ pty ] ->
+      is_type_wf pty
   | PTtuple ptys ->
      let ptys = List.map is_type_wf ptys in
      let fun_tuple =
+       (* __ is intentional to avoid name crashes *)
        qualid [Printf.sprintf "is__tuple%d_wf" (List.length ptys)]
      in
-     tapplys (tvar fun_tuple) ptys
-  | PTparen pty -> is_type_wf pty
-  | PTpure pty -> is_type_wf pty
+     T.mk_applys (tvar fun_tuple) ptys
   | _ ->
       failwith
         (Format.asprintf "Unsupported type %a"
            (Mlw_printer.pp_pty ~attr:true).closed pty)
 
-let sort_wf (s : Sort.t) (e : expr) : term =
-  let Sort pty = s in
+let sort_wf ((Sort pty) : Sort.t) (t : term) : term =
   let f = is_type_wf pty in
-  term @@ Tapply (f, T.of_expr e)
+  T.mk_applys f [t]
 
 (* auto-generate [is_<typename>_wf] for typedecls with attributes *)
 let generate_is_type_wf (type_decl : type_decl) : logic_decl iresult =
@@ -261,7 +264,7 @@ let generate_is_type_wf (type_decl : type_decl) : logic_decl iresult =
     match type_decl.td_def with
     | TDalias pty ->
         let* s = Sort.sort_of_pty pty in
-        return @@ sort_wf s @@ E.mk_var v_id
+        return @@ sort_wf s @@ tvar @@ qid v_id
     | TDrecord flds ->
         (* predicate is_type_wf _s =
              is_type1_wf _s.field1 /\
@@ -270,7 +273,7 @@ let generate_is_type_wf (type_decl : type_decl) : logic_decl iresult =
         List.fold_left_e
           (fun t f ->
              let* s = Sort.sort_of_pty f.f_pty in
-             let p = sort_wf s @@ eapp (qid f.f_ident) [ E.mk_var v_id ] in
+             let p = sort_wf s @@ T.mk_idapp f.f_ident [ tvar @@ qid v_id ] in
              return @@ T.mk_and p t)
           (Ptree_helpers.term Ttrue) flds
     | TDalgebraic cs ->
@@ -290,18 +293,18 @@ let generate_is_type_wf (type_decl : type_decl) : logic_decl iresult =
               let param_tys =
                 List.map (fun (_,_,_,pty) -> pty) params
               in
-              let p = pat @@ Papp (Qident c, pats) in
+              let p = pat @@ Papp (qid c, pats) in
               let* ts =
                 List.map_e (fun (i, pty) ->
                     let* s = Sort.sort_of_pty pty in
-                    let term = sort_wf s (evar (qid i)) in
+                    let term = sort_wf s (tvar (qid i)) in
                     return term)
                 @@ List.combine param_ids param_tys
               in
               let t = List.fold_left T.mk_and (term Ttrue) ts in
               return (p, t)) cs
         in
-        return @@ term @@ Tcase (term @@ Tident (Qident v_id), cases)
+        return @@ term @@ Tcase (term @@ Tident (qid v_id), cases)
     | _ ->
         error_with ~loc "Unsupported %a@."
           (Mlw_printer.pp_decl ~attr:true) (Dtype [type_decl])
@@ -504,7 +507,7 @@ module Generator (D : Desc) = struct
                               ( qualid [ "Xfer" ],
                                 [ pat_var gp; pat_var amt; pat_var dst ] ),
                          wrap_assume
-                           ~assumption:(sort_wf Mtypes.s_mutez @@ E.mk_var amt)
+                           ~assumption:(sort_wf Mtypes.s_mutez @@ tvar (qid amt))
                          @@ E.mk_if
                               (E.mk_bin (balance_of contract ctx) "<"
                               @@ E.mk_var amt)
@@ -699,7 +702,7 @@ module Generator (D : Desc) = struct
     let d =
       M.fold
         (fun _ c t ->
-          T.mk_and (sort_wf Mtypes.s_mutez @@ balance_of c @@ E.var_of_param ctx)
+          T.mk_and (sort_wf Mtypes.s_mutez @@ T.of_expr @@ balance_of c @@ E.var_of_param ctx)
           @@ T.mk_and
                (T.of_expr @@ call_storage_wf_of c @@ storage_of c
               @@ E.var_of_param ctx)
@@ -868,7 +871,7 @@ let gen_param_wf ep =
           List.mapi
             (fun i s ->
               let p = ident @@ Format.sprintf "_p%d" i in
-              (Ptree_helpers.(pat_var p), sort_wf s @@ E.mk_var p))
+              (Ptree_helpers.(pat_var p), sort_wf s @@ tvar @@ qid p))
             s
           |> List.split
         in
@@ -900,14 +903,13 @@ let gen_storage_wf td =
     match td.td_def with
     | TDalias pty ->
         let* s = Sort.sort_of_pty pty in
-        return @@ sort_wf s (E.mk_var @@ param_id sto)
+        return @@ sort_wf s @@ tvar @@ qid @@ param_id sto
     | TDrecord flds ->
         List.fold_left_e
           (fun t f ->
             let* s = Sort.sort_of_pty f.f_pty in
             let p =
-              sort_wf s
-              @@ Ptree_helpers.eapp (qid f.f_ident) [ E.mk_var @@ param_id sto ]
+              sort_wf s @@ T.mk_idapp f.f_ident [ tvar @@ qid @@ param_id sto ]
             in
             return @@ T.mk_and p t)
           (Ptree_helpers.term Ttrue) flds
