@@ -245,9 +245,10 @@ let rec is_type_wf (pty : pty) : term =
        qualid [Printf.sprintf "is__tuple%d_wf" (List.length ptys)]
      in
      T.mk_applys (tvar fun_tuple) ptys
+  | PTparen pty -> is_type_wf pty
   | _ ->
       failwith
-        (Format.asprintf "Unsupported type %a"
+        (Format.asprintf "is_type_wf: Unsupported type %a"
            (Mlw_printer.pp_pty ~attr:true).closed pty)
 
 let sort_wf (Sort pty : Sort.t) (t : term) : term =
