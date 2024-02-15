@@ -30,12 +30,11 @@ type entrypoint = {
 
 type contract = {
   c_name : Ptree.ident;
-  c_store_ty : Ptree.type_decl;
   c_entrypoints : entrypoint list;
   c_num_kont : int;
   c_pre : Ptree.logic_decl;
   c_post : Ptree.logic_decl;
-  c_original_decls : Ptree.decl list;
+  c_other_decls : Ptree.decl list;
 }
 
 type t = {
@@ -207,7 +206,7 @@ let parse_contract loc id ds =
       (None, None, None, None, None)
       ds
   in
-  let* c_store_ty =
+  let* _c_store_ty =
     Option.to_iresult ostore ~none:(error_of_fmt ~loc "storage is missing")
   in
   let* c_num_kont =
@@ -222,8 +221,24 @@ let parse_contract loc id ds =
   let* c_post =
     Option.to_iresult opost ~none:(error_of_fmt ~loc "post is missing")
   in
-  return { c_name = id; c_store_ty; c_entrypoints; c_num_kont; c_pre; c_post;
-           c_original_decls= ds
+  let c_other_decls =
+    List.filter (function
+        | Dlet (id, _, _, _) when id.id_str = Id.upper_ops.id_str ->
+            (* skip let upper_ops = _ *)
+            false
+        | Dlogic [ ld ] when ld.ld_ident.id_str = Id.pre.id_str ->
+            (* skip predicate pre = _ *)
+            false
+        | Dlogic [ ld ] when ld.ld_ident.id_str = Id.post.id_str ->
+            (* skip predicate post = _ *)
+            false
+        | Dscope (_loc, _, id, _dls) when id.id_str = Id.spec_scope.id_str ->
+            (* skip Spec *)
+            false
+        | _ -> true) ds
+  in
+  return { c_name = id; c_entrypoints; c_num_kont; c_pre; c_post;
+           c_other_decls
          }
 
 let parse_unknown (loc : Loc.position) (ds : Ptree.decl list) =

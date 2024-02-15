@@ -250,7 +250,7 @@ let rec is_type_wf (pty : pty) : term =
         (Format.asprintf "Unsupported type %a"
            (Mlw_printer.pp_pty ~attr:true).closed pty)
 
-let sort_wf ((Sort pty) : Sort.t) (t : term) : term =
+let sort_wf (Sort pty : Sort.t) (t : term) : term =
   let f = is_type_wf pty in
   T.mk_applys f [t]
 
@@ -263,7 +263,7 @@ let generate_is_type_wf (type_decl : type_decl) : logic_decl iresult =
   let* body =
     match type_decl.td_def with
     | TDalias pty ->
-        let* s = Sort.sort_of_pty pty in
+        let s = Sort.sort_of_pty pty in
         return @@ sort_wf s @@ tvar @@ qid v_id
     | TDrecord flds ->
         (* predicate is_type_wf _s =
@@ -272,7 +272,7 @@ let generate_is_type_wf (type_decl : type_decl) : logic_decl iresult =
         *)
         List.fold_left_e
           (fun t f ->
-             let* s = Sort.sort_of_pty f.f_pty in
+             let s = Sort.sort_of_pty f.f_pty in
              let p = sort_wf s @@ T.mk_idapp f.f_ident [ tvar @@ qid v_id ] in
              return @@ T.mk_and p t)
           (Ptree_helpers.term Ttrue) flds
@@ -296,7 +296,7 @@ let generate_is_type_wf (type_decl : type_decl) : logic_decl iresult =
               let p = pat @@ Papp (qid c, pats) in
               let* ts =
                 List.map_e (fun (i, pty) ->
-                    let* s = Sort.sort_of_pty pty in
+                    let s = Sort.sort_of_pty pty in
                     let term = sort_wf s (tvar (qid i)) in
                     return term)
                 @@ List.combine param_ids param_tys
@@ -892,38 +892,6 @@ let gen_param_wf ep =
       ld_def = Some body;
     }
 
-let gen_storage_wf td =
-  let sto : Ptree.param =
-    ( Loc.dummy_position,
-      Some (Ptree_helpers.ident "_s"),
-      false,
-      PTtyapp (Ptree_helpers.qualid [ "storage" ], []) )
-  in
-  let* body =
-    match td.td_def with
-    | TDalias pty ->
-        let* s = Sort.sort_of_pty pty in
-        return @@ sort_wf s @@ tvar @@ qid @@ param_id sto
-    | TDrecord flds ->
-        List.fold_left_e
-          (fun t f ->
-            let* s = Sort.sort_of_pty f.f_pty in
-            let p =
-              sort_wf s @@ T.mk_idapp f.f_ident [ tvar @@ qid @@ param_id sto ]
-            in
-            return @@ T.mk_and p t)
-          (Ptree_helpers.term Ttrue) flds
-    | _ -> assert false
-  in
-  return
-    {
-      ld_loc = Loc.dummy_position;
-      ld_ident = Ptree_helpers.ident "storage_wf";
-      ld_params = [ sto ];
-      ld_type = None;
-      ld_def = Some body;
-    }
-
 let convert_contract (epp : Sort.t list StringMap.t StringMap.t)
     (c : Tzw.contract) =
   let* eps =
@@ -938,49 +906,49 @@ let convert_contract (epp : Sort.t list StringMap.t StringMap.t)
     |> Option.to_iresult ~none:(error_of_fmt "")
   in
   let* param_wf = gen_param_wf ep in
-  return
-  @@ Dscope
-       ( Loc.dummy_position,
-         false,
-         c.c_name,
 
-         List.concat_map (fun d ->
-             match d with
-             | Dtype dts ->
-                 [d] @
-                 (match generate_is_type_wfs dts with
-                  | Error _e -> assert false
-                  | Ok xs -> xs)
-             | Dlet (id, _, _, _) when id.id_str = Id.upper_ops.id_str ->
-                 (* skip let upper_ops = _ *)
-                 []
-             | Dlogic [ ld ] when ld.ld_ident.id_str = Id.pre.id_str ->
-                 (* skip predicate pre = _ *)
-                 []
-             | Dlogic [ ld ] when ld.ld_ident.id_str = Id.post.id_str ->
-                 (* skip predicate post = _ *)
-                 []
-             | Dscope (_loc, _, id, _dls) when id.id_str = Id.spec_scope.id_str ->
-                 (* skip Spec *)
-                 []
-             | _ -> [d])
-         c.c_original_decls @
+  let other_decls =
+      List.concat_map (fun d ->
+          match d with
+          | Dtype dts ->
+              [d] @
+              (* Adds is_type_wf if [@gen_wf] is attached *)
+              (match generate_is_type_wfs dts with
+               | Error _e -> assert false
+               | Ok xs -> xs)
+          | _ -> [d])
+        c.c_other_decls
+  in
 
-         [
-           Dlogic
-             [
-               {
-                 ld_loc = Loc.dummy_position;
-                 ld_ident = Ptree_helpers.ident "addr";
-                 ld_params = [];
-                 ld_type = Some Mtypes.ty_address;
-                 ld_def = None;
-               };
-             ];
-           Dlogic [ param_wf ];
-           Dscope (Loc.dummy_position, false, Ptree_helpers.ident "Spec", eps);
-           Dlogic [ gen_spec (StringMap.find c.c_name.id_str epp) ];
-         ] )
+  return @@
+  (* scope Contract .. *)
+  Dscope
+    ( Loc.dummy_position,
+      false,
+      c.c_name,
+
+      other_decls @
+      [
+        (* function addr : address *)
+        Dlogic
+          [
+            {
+              ld_loc = Loc.dummy_position;
+              ld_ident = ident "addr";
+              ld_params = [];
+              ld_type = Some Mtypes.ty_address;
+              ld_def = None;
+            };
+          ];
+
+        (* predicate param_wf (gp: gparam) = .. *)
+        Dlogic [ param_wf ];
+
+        (* scope Spec ... *)
+        Dscope (Loc.dummy_position, false, ident "Spec", eps);
+        (* predicate spec (st: step) (gp: gparam) (s: storage) (op: list operation) (s': storage) = .. *)
+        Dlogic [ gen_spec (StringMap.find c.c_name.id_str epp) ];
+      ] )
 
 let gen_gparam (epp : Sort.t list StringMap.t StringMap.t) =
   let module S = Set.Make (struct
